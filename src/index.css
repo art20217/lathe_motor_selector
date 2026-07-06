@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root {
+  font-family: "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+}
+
+html {
+  background-color: var(--color-slate-100);
+  color: var(--color-slate-800);
+}
+
+@media print {
+  html {
+    background-color: white;
+  }
+}

@@ -1,0 +1,87 @@
+/**
+ * Phase 1：切削力、淨功率與主軸端座標計算
+ *
+ * 公式依據 SOP Step 1.2 / 1.3（kc 修正式為 Sandvik 線性近似，
+ * 前角偏離參考值 ±10° 以內適用）。
+ */
+import { TORQUE_CONST, type DutyCase, type DutyResult } from './types'
+
+const DEG = Math.PI / 180
+
+/** 切屑厚度 h = fn·sin(κr) [mm] */
+export function chipThickness(fn: number, kappaRDeg: number): number {
+  return fn * Math.sin(kappaRDeg * DEG)
+}
+
+/** 修正後比切削力 kc = kc1·h⁻ᵐᶜ·(1 − (γ0 − γref)/100) [N/mm²] */
+export function specificCuttingForce(
+  kc1: number,
+  mc: number,
+  h: number,
+  gamma0Deg: number,
+  gammaRefDeg: number,
+): number {
+  return kc1 * Math.pow(h, -mc) * (1 - (gamma0Deg - gammaRefDeg) / 100)
+}
+
+/** 主切削力 Fc = kc·ap·fn [N] */
+export function cuttingForce(kc: number, ap: number, fn: number): number {
+  return kc * ap * fn
+}
+
+/** 淨切削功率 Pc = Fc·vc / (60·10³) [kW] */
+export function cuttingPower(Fc: number, vc: number): number {
+  return (Fc * vc) / 60e3
+}
+
+/** 主軸轉速 n_sp = 1000·vc / (π·D) [rpm] */
+export function spindleSpeed(vc: number, D: number): number {
+  return (1000 * vc) / (Math.PI * D)
+}
+
+/** 主軸端所需扭矩 T_sp = Pc·9549 / n_sp [N·m] */
+export function spindleTorque(Pc: number, nSp: number): number {
+  return (Pc * TORQUE_CONST) / nSp
+}
+
+/** 交叉驗證式：T_sp = Fc·(D/2)·10⁻³ [N·m]（與 spindleTorque 數學等價） */
+export function spindleTorqueFromForce(Fc: number, D: number): number {
+  return (Fc * D) / 2 / 1e3
+}
+
+/**
+ * 計算單一工況的主軸端座標。
+ * direct 模式（螺紋等由廠商工具計算的工況）直接採用給定 (n, T)，
+ * 功率由 P = T·n/9549 反推。
+ */
+export function computeDuty(c: DutyCase): DutyResult {
+  if (c.operation === 'direct') {
+    const nSp = c.directNSp ?? 0
+    const TSp = c.directTSp ?? 0
+    return {
+      caseId: c.id,
+      h: null,
+      kc: null,
+      Fc: null,
+      Pc: (TSp * nSp) / TORQUE_CONST, // P [kW] = T·n / 9549
+      nSp,
+      TSp,
+      TSpCross: null,
+    }
+  }
+  const h = chipThickness(c.fn, c.kappaR)
+  const kc = specificCuttingForce(c.kc1, c.mc, h, c.gamma0, c.gammaRef)
+  const Fc = cuttingForce(kc, c.ap, c.fn)
+  const Pc = cuttingPower(Fc, c.vc)
+  const nSp = spindleSpeed(c.vc, c.D)
+  return {
+    caseId: c.id,
+    h,
+    kc,
+    Fc,
+    Pc,
+    nSp,
+    TSp: spindleTorque(Pc, nSp),
+    TSpCross: spindleTorqueFromForce(Fc, c.D),
+  }
+}
