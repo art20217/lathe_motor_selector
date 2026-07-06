@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # 不用 npm ci：Windows 產生的 lockfile 會缺少 wasm fallback 套件的
+      # Linux 端 peer 依賴（npm 已知跨平台問題），npm ci 會嚴格檢查而失敗
+      - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v5
