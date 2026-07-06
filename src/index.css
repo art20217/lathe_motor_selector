@@ -14,3 +14,13 @@ html {
     background-color: white;
   }
 }
+
+/* 新增工況卡片的短暫高亮 */
+@keyframes flash-new {
+  0% {
+    background-color: var(--color-blue-100);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

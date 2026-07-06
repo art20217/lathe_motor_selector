@@ -291,7 +291,7 @@ export function Phase2() {
         )}
         {adding && <div className="mb-3"><MotorForm initial={blankMotor()} onSave={saveMotor} onCancel={() => setAdding(false)} /></div>}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+          <table className="w-full min-w-[820px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200">
                 <th className={th}>選定</th>
@@ -304,7 +304,6 @@ export function Phase2() {
                 <th className={`${th} text-right`}>J [kg·m²]</th>
                 <th className={th}>電壓</th>
                 <th className={th}>狀態</th>
-                <th className={th}></th>
               </tr>
             </thead>
             <tbody>
@@ -314,7 +313,7 @@ export function Phase2() {
                 if (editingId === m.id)
                   return (
                     <tr key={m.id}>
-                      <td colSpan={11} className="py-2">
+                      <td colSpan={10} className="py-2">
                         <MotorForm initial={m} onSave={saveMotor} onCancel={() => setEditingId(null)} />
                       </td>
                     </tr>
@@ -339,6 +338,25 @@ export function Phase2() {
                     <td className="px-2 py-1.5">
                       <div className="font-medium">{m.brand} {m.model}</div>
                       {m.note && <div className="text-xs text-slate-400">{m.note}</div>}
+                      <div className="mt-0.5 flex gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(m.id)
+                            setAdding(false)
+                          }}
+                          className="flex items-center gap-0.5 text-blue-600 hover:underline"
+                        >
+                          <Pencil size={11} /> 編輯
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => (isBuiltIn(m.id) ? s.hideBuiltInMotor(m.id) : s.removeMotor(m.id))}
+                          className="flex items-center gap-0.5 text-red-500 hover:underline"
+                        >
+                          <Trash2 size={11} /> {isBuiltIn(m.id) ? '隱藏' : '刪除'}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmt(m.powerS1, 1)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmt(m.nBase, 0)}</td>
@@ -353,27 +371,6 @@ export function Phase2() {
                           (candidate ? <Badge kind="ok">候選</Badge> : <Badge kind="error">功率不足</Badge>)}
                         {!m.verified && <Badge kind="warn">須核對</Badge>}
                       </div>
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5">
-                      <button
-                        type="button"
-                        title="編輯"
-                        onClick={() => {
-                          setEditingId(m.id)
-                          setAdding(false)
-                        }}
-                        className="p-1 text-slate-400 hover:text-blue-600"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        title={isBuiltIn(m.id) ? '自清單隱藏' : '刪除'}
-                        onClick={() => (isBuiltIn(m.id) ? s.hideBuiltInMotor(m.id) : s.removeMotor(m.id))}
-                        className="p-1 text-slate-400 hover:text-red-600"
-                      >
-                        <Trash2 size={14} />
-                      </button>
                     </td>
                   </tr>
                 )
