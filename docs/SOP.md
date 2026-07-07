@@ -123,7 +123,9 @@ $$n_{sp} = \frac{1000 \times v_c}{\pi \times D} \quad \text{[rpm]}$$
 
 **主軸端所需扭矩：**
 
-$$T_{sp} = \frac{P_c \times 9549}{n_{sp}} \quad \text{[N·m]}$$
+$$T_{sp} = \frac{P_c \times 9550}{n_{sp}} \quad \text{[N·m]}$$
+
+> **常數 9550 的由來**：$T = P/\omega = P \times 60/(2\pi \times n)$。將 $P$ 代入 [kW]、$n$ 代入 [rpm]，得 $T = P \times 60000/(2\pi \times n) = P \times 9549.30\ldots / n$。9550 為此值的四捨五入工程慣用值，與 FANUC、Sandvik 等型錄一致。
 
 > **數學等價驗證**：$T_{sp} = F_c \times \frac{D}{2} \times 10^{-3}$ [N·m]。兩個公式的結果必須一致，因為 $P_c = F_c \times v_c / (60 \times 10^3)$ 且 $v_c = \pi D n_{sp} / 1000$，代入後 $D$ 和 $v_c$ 抵消，得到 $T_{sp} = F_c \times D / (2 \times 10^3)$。
 
@@ -196,11 +198,11 @@ AC 主軸馬達的 T-n 特性由以下參數定義：
 
 **額定扭矩：**
 
-$$T_{rated} = \frac{P_{rated} \times 9549}{n_{base}} \quad \text{[N·m]}$$
+$$T_{rated} = \frac{P_{rated} \times 9550}{n_{base}} \quad \text{[N·m]}$$
 
 **T-n 特性曲線：**
 
-$$T_{motor}(n) = \begin{cases} T_{rated} & \text{if } n \leq n_{base} \\[6pt] \dfrac{P_{rated} \times 9549}{n} & \text{if } n_{base} < n \leq n_{max} \end{cases}$$
+$$T_{motor}(n) = \begin{cases} T_{rated} & \text{if } n \leq n_{base} \\[6pt] \dfrac{P_{rated} \times 9550}{n} & \text{if } n_{base} < n \leq n_{max} \end{cases}$$
 
 - 恆扭矩區（$0 \to n_{base}$）：扭矩恆定，功率線性上升
 - 恆功率區（$n_{base} \to n_{max}$）：功率恆定，扭矩反比下降

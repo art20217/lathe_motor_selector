@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { constPowerGaps, gearConstPowerBand, verifyCoverage } from '../../engine/tnCurve'
 import { fmt } from '../../lib/format'
 import { useProjectStore } from '../../store/projectStore'
-import { getDutyPoints, getDutyResults, getSelectedMotor } from '../../store/selectors'
+import { getDutyPoints, getEffectiveDutyResults, getSelectedMotor } from '../../store/selectors'
 import { Badge, Field, NumInput, Section } from '../ui'
 import { TnChart } from './TnChart'
 
@@ -48,7 +48,7 @@ function GearTeethHelper({ onApply }: { onApply: (ratio: number) => void }) {
 export function Phase3() {
   const s = useProjectStore()
   const motor = getSelectedMotor(s)
-  const results = getDutyResults(s.cases)
+  const results = getEffectiveDutyResults(s)
   const points = getDutyPoints(s.cases, results)
 
   if (!motor) {

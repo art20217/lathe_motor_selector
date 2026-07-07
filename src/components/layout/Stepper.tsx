@@ -1,5 +1,5 @@
 import { useProjectStore } from '../../store/projectStore'
-import { getDutyResults, getMotorList, getPMin } from '../../store/selectors'
+import { getEffectiveDutyResults, getMotorList, getPMin } from '../../store/selectors'
 
 const STEPS = [
   { phase: 1, label: 'Phase 1 工況定義' },
@@ -11,7 +11,7 @@ const STEPS = [
 
 export function Stepper() {
   const s = useProjectStore()
-  const results = getDutyResults(s.cases)
+  const results = getEffectiveDutyResults(s)
   const pMin = getPMin(s, results)
   const candidateCount = getMotorList(s).filter((m) => m.powerS1 >= pMin).length
 

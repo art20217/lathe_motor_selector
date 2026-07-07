@@ -6,15 +6,25 @@
 import { TORQUE_CONST, type DutyPoint, type Gear, type Motor } from './types'
 import { ratedTorque } from './motorSelection'
 
+/** 額定方式：S1 連續 / S3 短時（30min） */
+export type MotorRating = 's1' | 's3'
+
+/** 指定額定方式下的功率 [kW]；S3 未填時退回 S1 */
+export function motorPower(motor: Motor, rating: MotorRating = 's1'): number {
+  return rating === 's3' && motor.powerS3 != null ? motor.powerS3 : motor.powerS1
+}
+
 /**
  * 馬達 T-n 特性 [N·m]：
  * 恆扭矩區（n ≤ n_base）輸出額定扭矩，恆功率區（n_base < n ≤ n_max）扭矩反比下降。
  * n 超出 n_max 回傳 0（不可運轉）。
+ * rating='s3' 時以 S3/30min 功率等比縮放（近似；真實 S3 曲線形狀須查型錄）。
  */
-export function motorTorque(motor: Motor, n: number): number {
+export function motorTorque(motor: Motor, n: number, rating: MotorRating = 's1'): number {
   if (n < 0 || n > motor.nMax) return 0
-  if (n <= motor.nBase) return ratedTorque(motor.powerS1, motor.nBase)
-  return (motor.powerS1 * TORQUE_CONST) / n
+  const p = motorPower(motor, rating)
+  if (n <= motor.nBase) return ratedTorque(p, motor.nBase)
+  return (p * TORQUE_CONST) / n
 }
 
 /**

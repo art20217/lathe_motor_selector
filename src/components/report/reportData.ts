@@ -3,6 +3,7 @@
  */
 import {
   accelTime,
+  accelTimeCurve,
   cylinderMass,
   hollowCylinderInertia,
   reflectedInertia,
@@ -10,11 +11,12 @@ import {
 } from '../../engine/dynamics'
 import { constantPowerRatio, ratedTorque } from '../../engine/motorSelection'
 import { constPowerGaps, verifyCoverage, type CoverageResult, type PowerBandGap } from '../../engine/tnCurve'
+import { deflectionCheck, type DeflectionResult } from '../../engine/workpiece'
 import type { DutyPoint, DutyResult, Motor } from '../../engine/types'
 import type { ProjectState } from '../../store/projectStore'
 import {
   getDutyPoints,
-  getDutyResults,
+  getEffectiveDutyResults,
   getMaxPc,
   getMotorList,
   getPMin,
@@ -41,14 +43,16 @@ export interface ReportData {
     tAccTorque: number | null
     deltaNMotor: number | null
     tAcc: number | null
+    tAccIntegral: number | null
     pass: boolean | null
   }
+  deflectionResult: DeflectionResult | null
   /** 報告須揭露的假設值/未核對項清單 */
   assumptions: string[]
 }
 
 export function buildReportData(s: ProjectState): ReportData {
-  const results = getDutyResults(s.cases)
+  const results = getEffectiveDutyResults(s)
   const points = getDutyPoints(s.cases, results)
   const maxPc = getMaxPc(results)
   const pMin = getPMin(s, results)
@@ -77,7 +81,32 @@ export function buildReportData(s: ProjectState): ReportData {
     jTotal !== null && deltaNMotor !== null && tAccTorque !== null && tAccTorque > 0
       ? accelTime(jTotal, deltaNMotor, tAccTorque)
       : null
-  const pass = tAcc !== null && d.requiredTime !== null ? tAcc <= d.requiredTime : null
+  const tFriction = tRated !== null ? tRated * d.frictionPct / 100 : null
+  const tAccIntegral =
+    motor && jTotal !== null && deltaNMotor !== null && tFriction !== null
+      ? accelTimeCurve(motor, 's1', jTotal, 0, Math.abs(deltaNMotor), tFriction)
+      : null
+  const pass = tAccIntegral !== null && d.requiredTime !== null
+    ? tAccIntegral <= d.requiredTime
+    : tAcc !== null && d.requiredTime !== null
+      ? tAcc <= d.requiredTime
+      : null
+
+  // Deflection check
+  const worstFc = Math.max(...results.map((r) => r.Fc ?? 0), 0)
+  const worstFp = Math.max(...results.map((r) => r.Fp ?? 0), 0)
+  const deflectionResult = worstFc > 0
+    ? deflectionCheck(
+        s.deflection.support,
+        s.deflection.diameter,
+        s.deflection.length,
+        worstFc,
+        worstFp,
+        s.deflection.eGpa * 1e9,
+        s.deflection.limit,
+        s.deflection.bore,
+      )
+    : null
 
   const assumptions: string[] = []
   if (s.etaIsEstimated)
@@ -85,9 +114,12 @@ export function buildReportData(s: ProjectState): ReportData {
       `η_total = ${s.etaTotal.toFixed(3)} 為估算值（單級 ${s.etaStageEff} ^ ${s.etaStages} 級），非實測`,
     )
   assumptions.push(`空載摩擦扭矩取額定扭矩的 ${d.frictionPct}%（假設值，SOP 建議 5–10%）`)
+  if (s.lossConfig.enabled)
+    assumptions.push('主軸機械損失（軸承 Palmgren 經驗式＋紊流風阻）已計入工況需求，係數為代表值')
   if (motor && !motor.verified)
     assumptions.push(`選定馬達「${motor.brand} ${motor.model}」規格未核對型錄，正式選型前須以 FANUC B-65272EN 確認`)
   assumptions.push('材料 kc1/mc 若採內建參考值，正式選型前須核對現行刀具廠商手冊（參考條件 h=1mm、γref=6°）')
+  assumptions.push('扭矩常數 9550 = 60000/(2π) 的工程慣用值（精確值 9549.30）')
 
   return {
     state: s,
@@ -101,7 +133,8 @@ export function buildReportData(s: ProjectState): ReportData {
     motorRcp: motor ? constantPowerRatio(motor) : null,
     coverage,
     gaps,
-    dyn: { mass, jWp, jLoad, jTotal, tAccTorque, deltaNMotor, tAcc, pass },
+    dyn: { mass, jWp, jLoad, jTotal, tAccTorque, deltaNMotor, tAcc, tAccIntegral, pass },
+    deflectionResult,
     assumptions,
   }
 }

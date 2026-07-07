@@ -18,7 +18,7 @@ export function minMotorPower(maxPc: number, etaTotal: number, SF: number): numb
   return (maxPc / etaTotal) * SF
 }
 
-/** 額定扭矩 T_rated = P_rated·9549 / n_base [N·m] */
+/** 額定扭矩 T_rated = P_rated·9550 / n_base [N·m] */
 export function ratedTorque(powerS1: number, nBase: number): number {
   return (powerS1 * TORQUE_CONST) / nBase
 }

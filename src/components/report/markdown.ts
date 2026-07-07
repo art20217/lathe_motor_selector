@@ -28,13 +28,13 @@ export function buildMarkdownReport(r: ReportData): string {
     push('（無工況）', '')
   } else {
     push(
-      '| 工況 | 型態 | 材料 | D [mm] | ap [mm] | fn [mm/rev] | vc [m/min] | kc [N/mm²] | Fc [N] | Pc [kW] | n_sp [rpm] | T_sp [N·m] |',
-      '|:--|:--|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
+      '| 工況 | 型態 | 材料 | D [mm] | ap [mm] | fn [mm/rev] | vc [m/min] | kc [N/mm²] | Fc [N] | Ff [N] | Fp [N] | Pc [kW] | n_sp [rpm] | T_sp [N·m] |',
+      '|:--|:--|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
       ...s.cases.map((c) => {
         const res = r.results.find((x) => x.caseId === c.id)!
         const direct = c.operation === 'direct'
         const cell = (v: number | null | undefined, d: number) => (direct ? '—' : fmt(v ?? NaN, d))
-        return `| ${c.name} | ${OPERATION_LABELS[c.operation]} | ${direct ? '—' : c.material} | ${cell(c.D, 0)} | ${cell(c.ap, 1)} | ${cell(c.fn, 2)} | ${cell(c.vc, 0)} | ${fmt(res.kc, 0)} | ${fmt(res.Fc, 0)} | ${fmt(res.Pc, 2)} | ${fmt(res.nSp, 1)} | ${fmt(res.TSp, 1)} |`
+        return `| ${c.name} | ${OPERATION_LABELS[c.operation]} | ${direct ? '—' : c.material} | ${cell(c.D, 0)} | ${cell(c.ap, 1)} | ${cell(c.fn, 2)} | ${cell(c.vc, 0)} | ${fmt(res.kc, 0)} | ${fmt(res.Fc, 0)} | ${res.Ff != null ? fmt(res.Ff, 0) : '—'} | ${res.Fp != null ? fmt(res.Fp, 0) : '—'} | ${fmt(res.Pc, 2)} | ${fmt(res.nSp, 1)} | ${fmt(res.TSp, 1)} |`
       }),
       '',
     )
@@ -52,11 +52,11 @@ export function buildMarkdownReport(r: ReportData): string {
 
   if (r.candidates.length) {
     push(
-      '| 候選馬達 | S1 [kW] | n_base [rpm] | n_max [rpm] | R_cp | 型錄核對 |',
-      '|:--|--:|--:|--:|--:|:--|',
+      '| 候選馬達 | S1 [kW] | S3 [kW] | n_base [rpm] | n_max [rpm] | R_cp | 型錄核對 |',
+      '|:--|--:|--:|--:|--:|--:|:--|',
       ...r.candidates.map(
         (m) =>
-          `| ${m.brand} ${m.model}${m.id === s.selectedMotorId ? '（**選定**）' : ''} | ${fmt(m.powerS1, 1)} | ${fmt(m.nBase, 0)} | ${fmt(m.nMax, 0)} | ${fmt(m.nMax / m.nBase, 2)} | ${m.verified ? '已核對' : '⚠ 須核對'} |`,
+          `| ${m.brand} ${m.model}${m.id === s.selectedMotorId ? '（**選定**）' : ''} | ${fmt(m.powerS1, 1)} | ${m.powerS3 != null ? fmt(m.powerS3, 1) : '—'} | ${fmt(m.nBase, 0)} | ${fmt(m.nMax, 0)} | ${fmt(m.nMax / m.nBase, 2)} | ${m.verified ? '已核對' : '⚠ 須核對'} |`,
       ),
       '',
     )
@@ -121,7 +121,8 @@ export function buildMarkdownReport(r: ReportData): string {
     `| 折算至馬達端 J_total（第 ${d.gearIndex + 1} 檔） | ${r.dyn.jTotal === null ? '—' : `${fmt(r.dyn.jTotal, 3)} kg·m²`} |`,
     `| 可用加速扭矩 T_acc（摩擦 ${fmt(d.frictionPct, 0)}% 假設值） | ${r.dyn.tAccTorque === null ? '—' : `${fmt(r.dyn.tAccTorque, 1)} N·m`} |`,
     `| 主軸端 Δn = ${fmt(d.deltaNSp, 0)} rpm → 馬達端 Δn | ${r.dyn.deltaNMotor === null ? '—' : `${fmt(r.dyn.deltaNMotor, 0)} rpm`} |`,
-    `| **加速時間 t_acc** | **${r.dyn.tAcc === null ? '—' : `${fmt(r.dyn.tAcc, 2)} s`}** |`,
+    `| **加速時間（數值積分）** | **${r.dyn.tAccIntegral === null ? '—' : `${fmt(r.dyn.tAccIntegral, 2)} s`}** |`,
+    `| 加速時間（線性近似） | ${r.dyn.tAcc === null ? '—' : `${fmt(r.dyn.tAcc, 2)} s`} |`,
     `| 規格要求 | ${d.requiredTime === null ? '未定義' : `≤ ${fmt(d.requiredTime, 1)} s（${r.dyn.pass ? '✓ 通過' : '✗ 未通過'}）`} |`,
     '',
     '### Step 4.2 驅動器匹配查核',
@@ -132,6 +133,27 @@ export function buildMarkdownReport(r: ReportData): string {
     '',
     ...s.thermalChecklist.map((i) => `- [${i.checked ? 'x' : ' '}] ${i.label}${i.note ? `（${i.note}）` : ''}`),
     '',
+  )
+
+  if (r.deflectionResult) {
+    const df = r.deflectionResult
+    push(
+      '### 工件撓曲檢核',
+      '',
+      `| 項目 | 數值 |`,
+      `|:--|--:|`,
+      `| 支撐方式 | ${df.supportName} |`,
+      `| L/D | ${fmt(df.ldRatio, 1)} |`,
+      `| 彎曲合力 √(Fc²+Fp²) | ${fmt(df.fBend, 0)} N |`,
+      `| **最大撓曲量 δ** | **${fmt(df.deflection, 4)} mm** |`,
+      `| 允許值 | ${fmt(df.limit, 3)} mm（${df.ok ? '✓ 通過' : '✗ 超限'}）|`,
+      '',
+    )
+    if (df.advice.length)
+      push(...df.advice.map((a) => `- ⚠ ${a}`), '')
+  }
+
+  push(
     '---',
     '',
     `*本報告由車床主軸馬達選型工具產出（${today}）。所有標記「假設值 / 須核對」之項目，須於設計審查前完成確認。*`,

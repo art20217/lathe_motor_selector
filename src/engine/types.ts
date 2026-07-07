@@ -40,6 +40,10 @@ export interface DutyCase {
   gamma0: number
   /** kc1 測量基準前角 [°]（Sandvik 標準 = 6） */
   gammaRef: number
+  /** 進給分力比 Ff/Fc（經驗值，建立時自材料複製）；舊資料缺省時以 0.40 計 */
+  ffRatio?: number
+  /** 背分力比 Fp/Fc（經驗值）；舊資料缺省時以 0.30 計 */
+  fpRatio?: number
   /** operation = 'direct'（如螺紋，由廠商工具計算）時直接給定主軸端座標 */
   directNSp?: number
   /** [N·m] */
@@ -56,6 +60,10 @@ export interface DutyResult {
   kc: number | null
   /** 主切削力 [N]；direct 模式為 null */
   Fc: number | null
+  /** 進給分力 Ff = ffRatio·Fc [N]（Z 軸方向）；direct 模式為 null */
+  Ff: number | null
+  /** 背分力 Fp = fpRatio·Fc [N]（X 軸方向）；direct 模式為 null */
+  Fp: number | null
   /** 淨切削功率 [kW] */
   Pc: number
   /** 主軸轉速 [rpm] */
@@ -81,6 +89,8 @@ export interface Motor {
   model: string
   /** S1 連續額定功率 [kW] */
   powerS1: number
+  /** S3/30min 短時額定功率 [kW]；未知為 null（篩選仍以 S1 為主） */
+  powerS3?: number | null
   /** 基底轉速 [rpm] */
   nBase: number
   /** 最高轉速 [rpm] */
@@ -111,11 +121,21 @@ export interface Material {
   isoGroup: string
   kc1: number
   mc: number
+  /** 進給分力比 Ff/Fc（經驗值，選填） */
+  ffRatio?: number
+  /** 背分力比 Fp/Fc（經驗值，選填） */
+  fpRatio?: number
   /** 數據來源與參考條件說明 */
   source: string
   /** false = 參考值，正式選型前須核對刀具廠商手冊 */
   verified: boolean
 }
 
-/** SOP 使用的扭矩－功率換算常數：T [N·m] = P [kW] × 9549 / n [rpm] */
-export const TORQUE_CONST = 9549
+/**
+ * 扭矩－功率換算常數：T [N·m] = P [kW] × 9550 / n [rpm]
+ *
+ * 由來：T = P/ω = P[kW]·1000·60 / (2π·n) = P × (60000/2π) / n，
+ * 60000/2π = 9549.30…；9550 為機械業型錄與手冊（FANUC、Sandvik 等）
+ * 慣用的四捨五入工程值（相對誤差 +0.007%）。
+ */
+export const TORQUE_CONST = 9550

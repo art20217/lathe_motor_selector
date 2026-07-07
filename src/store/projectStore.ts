@@ -5,9 +5,11 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { BearingSpec } from '../engine/spindleLosses'
 import type { DutyCase, Gear, Material, Motor } from '../engine/types'
+import type { SupportType } from '../engine/workpiece'
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** Phase 4 加減速計算輸入 */
 export interface DynamicsInput {
@@ -37,6 +39,34 @@ export interface DynamicsInput {
   requiredTime: number | null
 }
 
+/** 主軸機械損失設定（軸承摩擦＋風阻；風阻的工件尺寸重用 dynamics 的輸入） */
+export interface LossConfig {
+  /** false = 不計損失（維持純切削需求） */
+  enabled: boolean
+  bearings: BearingSpec[]
+  /** 潤滑劑運轉黏度 [cSt] */
+  lubeViscosity: number
+  /** 夾頭外徑 [mm] */
+  chuckDia: number
+  /** 夾頭厚度 [mm] */
+  chuckLen: number
+}
+
+/** 工件撓曲檢核設定 */
+export interface DeflectionConfig {
+  support: SupportType
+  /** 工件直徑 [mm]（切削處最小斷面） */
+  diameter: number
+  /** 懸伸長 / 支撐跨距 [mm] */
+  length: number
+  /** 內孔徑 [mm] */
+  bore: number
+  /** 楊氏模數 [GPa] */
+  eGpa: number
+  /** 允許撓曲量 [mm] */
+  limit: number
+}
+
 /** 查核清單單項 */
 export interface CheckItem {
   id: string
@@ -52,6 +82,10 @@ export interface ProjectState {
   cases: DutyCase[]
   /** 使用者自訂材料（與內建參考庫合併顯示於材料下拉選單） */
   customMaterials: Material[]
+  /** 工件撓曲檢核設定 */
+  deflection: DeflectionConfig
+  // Phase 2 前置：主軸機械損失（估算，計入每個工況點的 T_sp / Pc）
+  lossConfig: LossConfig
   // Phase 2
   etaTotal: number
   /** true = etaTotal 由單級效率^級數估算（假設值，報告須標記） */
@@ -85,6 +119,9 @@ export interface ProjectActions {
   addMaterial: (m: Material) => void
   updateMaterial: (id: string, patch: Partial<Material>) => void
   removeMaterial: (id: string) => void
+  setDeflection: (patch: Partial<DeflectionConfig>) => void
+  setLossConfig: (patch: Partial<Omit<LossConfig, 'bearings'>>) => void
+  setLossBearing: (index: number, patch: Partial<BearingSpec>) => void
   setEta: (patch: Partial<Pick<ProjectState, 'etaTotal' | 'etaIsEstimated' | 'etaStageEff' | 'etaStages'>>) => void
   setSf: (sf: number) => void
   addMotor: (m: Motor) => void
@@ -116,6 +153,24 @@ const initialState: ProjectState = {
   projectName: '未命名選型案',
   cases: [],
   customMaterials: [],
+  deflection: {
+    support: 'chuck_tail',
+    diameter: 500,
+    length: 2000,
+    bore: 0,
+    eGpa: 206,
+    limit: 0.02,
+  },
+  lossConfig: {
+    enabled: false,
+    bearings: [
+      { dm: 250, preload: 25000, type: 'taper' },
+      { dm: 180, preload: 15000, type: 'taper' },
+    ],
+    lubeViscosity: 30,
+    chuckDia: 800,
+    chuckLen: 280,
+  },
   etaTotal: 0.85,
   etaIsEstimated: true,
   etaStageEff: 0.97,
@@ -174,6 +229,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         })),
       removeMaterial: (id) =>
         set((s) => ({ customMaterials: s.customMaterials.filter((m) => m.id !== id) })),
+      setDeflection: (patch) => set((s) => ({ deflection: { ...s.deflection, ...patch } })),
+      setLossConfig: (patch) => set((s) => ({ lossConfig: { ...s.lossConfig, ...patch } })),
+      setLossBearing: (index, patch) =>
+        set((s) => ({
+          lossConfig: {
+            ...s.lossConfig,
+            bearings: s.lossConfig.bearings.map((b, k) => (k === index ? { ...b, ...patch } : b)),
+          },
+        })),
       setEta: (patch) => set(patch),
       setSf: (sf) => set({ sf }),
       addMotor: (m) => set((s) => ({ customMotors: [...s.customMotors, m] })),
@@ -207,13 +271,21 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       importProject: (data) =>
         set({
           ...data,
-          // 舊版專案檔可能沒有此欄位，避免匯入後殘留前一份專案的資料
+          // 舊版（schema v1）專案檔缺以下欄位，補預設值並避免殘留前一份專案的資料
           customMaterials: data.customMaterials ?? [],
+          deflection: data.deflection ?? initialState.deflection,
+          lossConfig: data.lossConfig ?? initialState.lossConfig,
           schemaVersion: SCHEMA_VERSION,
         }),
       resetProject: () => set(initialState),
     }),
-    { name: 'lathe-motor-selector', version: SCHEMA_VERSION },
+    {
+      name: 'lathe-motor-selector',
+      version: SCHEMA_VERSION,
+      // v1 → v2：新增欄位（deflection、lossConfig 等）由 persist 淺合併自動補預設，
+      // 這裡只需原樣返還，避免版本不符時整份存檔被丟棄
+      migrate: (persisted) => persisted as ProjectState & ProjectActions,
+    },
   ),
 )
 
@@ -224,6 +296,8 @@ export function serializeProject(s: ProjectState & ProjectActions): ProjectState
     projectName: s.projectName,
     cases: s.cases,
     customMaterials: s.customMaterials,
+    deflection: s.deflection,
+    lossConfig: s.lossConfig,
     etaTotal: s.etaTotal,
     etaIsEstimated: s.etaIsEstimated,
     etaStageEff: s.etaStageEff,

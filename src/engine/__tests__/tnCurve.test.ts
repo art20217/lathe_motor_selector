@@ -30,7 +30,7 @@ const gear = (ratio: number, efficiency = 0.95): Gear => ({ ratio, efficiency })
 
 describe('Phase 3 T-n 特性與覆蓋驗證', () => {
   it('馬達 T-n 曲線：恆扭矩區 → 恆功率區 → 超出 n_max 為 0', () => {
-    const tRated = (22 * 9549) / 1500
+    const tRated = (22 * 9550) / 1500
     expect(motorTorque(motor, 0)).toBeCloseTo(tRated, 6)
     expect(motorTorque(motor, 1500)).toBeCloseTo(tRated, 6)
     expect(motorTorque(motor, 3000)).toBeCloseTo(tRated / 2, 6)
@@ -40,7 +40,7 @@ describe('Phase 3 T-n 特性與覆蓋驗證', () => {
 
   it('齒比映射：T_avail = T_motor(n_sp/i)·(1/i)·η', () => {
     const g = gear(0.25)
-    const tRated = (22 * 9549) / 1500
+    const tRated = (22 * 9550) / 1500
     // n_sp = 300 → n_motor = 1200（恆扭矩區）
     expect(availableTorque(motor, g, 300)).toBeCloseTo((tRated / 0.25) * 0.95, 6)
     // n_sp = 1500 → n_motor = 6000（恆功率區末端）
@@ -72,8 +72,8 @@ describe('Phase 3 T-n 特性與覆蓋驗證', () => {
     expect(r.allCovered).toBe(false)
     expect(r.perPoint[0].covered).toBe(true)
     expect(r.perPoint[1].covered).toBe(false)
-    // 一檔 n_motor = 2000：T_avail = 22·9549/2000/0.05·0.95
-    expect(r.perPoint[1].maxAvailable).toBeCloseTo(((22 * 9549) / 2000 / 0.05) * 0.95, 3)
+    // 一檔 n_motor = 2000：T_avail = 22·9550/2000/0.05·0.95
+    expect(r.perPoint[1].maxAvailable).toBeCloseTo(((22 * 9550) / 2000 / 0.05) * 0.95, 3)
   })
 
   it('覆蓋驗證：超出所有檔位轉速範圍的點未覆蓋', () => {
@@ -102,7 +102,7 @@ describe('Phase 3 T-n 特性與覆蓋驗證', () => {
   it('曲線取樣：首末點與轉折點正確', () => {
     const g = gear(0.25)
     const pts = sampleGearCurve(motor, g, 10)
-    const tRated = (22 * 9549) / 1500
+    const tRated = (22 * 9550) / 1500
     expect(pts[0]).toEqual({ n: 0, T: (tRated / 0.25) * 0.95 })
     expect(pts[1].n).toBeCloseTo(375, 6)
     expect(pts.at(-1)!.n).toBeCloseTo(1500, 6)
