@@ -65,6 +65,8 @@ export function ReportView() {
               <th className={th}>vc</th>
               <th className={th}>kc [N/mm²]</th>
               <th className={th}>Fc [N]</th>
+              <th className={th}>Ff [N]</th>
+              <th className={th}>Fp [N]</th>
               <th className={th}>Pc [kW]</th>
               <th className={th}>n_sp [rpm]</th>
               <th className={th}>T_sp [N·m]</th>
@@ -85,6 +87,8 @@ export function ReportView() {
                   <td className={`${td} text-right`}>{direct ? '—' : fmt(c.vc, 0)}</td>
                   <td className={`${td} text-right`}>{fmt(res.kc, 0)}</td>
                   <td className={`${td} text-right`}>{fmt(res.Fc, 0)}</td>
+                  <td className={`${td} text-right`}>{res.Ff != null ? fmt(res.Ff, 0) : '—'}</td>
+                  <td className={`${td} text-right`}>{res.Fp != null ? fmt(res.Fp, 0) : '—'}</td>
                   <td className={`${td} text-right`}>{fmt(res.Pc, 2)}</td>
                   <td className={`${td} text-right`}>{fmt(res.nSp, 1)}</td>
                   <td className={`${td} text-right font-medium`}>{fmt(res.TSp, 1)}</td>
@@ -108,6 +112,7 @@ export function ReportView() {
             <tr>
               <th className={th}>候選馬達</th>
               <th className={th}>S1 [kW]</th>
+              <th className={th}>S3 [kW]</th>
               <th className={th}>n_base</th>
               <th className={th}>n_max</th>
               <th className={th}>R_cp</th>
@@ -121,6 +126,7 @@ export function ReportView() {
                   {m.brand} {m.model} {m.id === s.selectedMotorId && <b>（選定）</b>}
                 </td>
                 <td className={`${td} text-right`}>{fmt(m.powerS1, 1)}</td>
+                <td className={`${td} text-right text-slate-400`}>{m.powerS3 != null ? fmt(m.powerS3, 1) : '—'}</td>
                 <td className={`${td} text-right`}>{fmt(m.nBase, 0)}</td>
                 <td className={`${td} text-right`}>{fmt(m.nMax, 0)}</td>
                 <td className={`${td} text-right`}>{fmt(m.nMax / m.nBase, 2)}</td>
@@ -234,8 +240,12 @@ export function ReportView() {
             <td className={`${td} text-right`}>{r.dyn.tAccTorque === null ? '—' : `${fmt(r.dyn.tAccTorque, 1)} N·m`}</td>
           </tr>
           <tr>
-            <td className={`${td} font-semibold`}>加速時間 t_acc（Δn_sp = {fmt(d.deltaNSp, 0)} rpm）</td>
-            <td className={`${td} text-right font-bold`}>{r.dyn.tAcc === null ? '—' : `${fmt(r.dyn.tAcc, 2)} s`}</td>
+            <td className={`${td} font-semibold`}>加速時間（數值積分，Δn_sp = {fmt(d.deltaNSp, 0)} rpm）</td>
+            <td className={`${td} text-right font-bold`}>{r.dyn.tAccIntegral === null ? '—' : `${fmt(r.dyn.tAccIntegral, 2)} s`}</td>
+          </tr>
+          <tr>
+            <td className={`${td} text-slate-400`}>加速時間（線性近似）</td>
+            <td className={`${td} text-right text-slate-400`}>{r.dyn.tAcc === null ? '—' : `${fmt(r.dyn.tAcc, 2)} s`}</td>
           </tr>
           <tr>
             <td className={td}>規格要求</td>
@@ -272,6 +282,45 @@ export function ReportView() {
           </ul>
         </div>
       </div>
+
+      {r.deflectionResult && (
+        <div className="mt-4">
+          <h3 className="text-sm font-semibold">工件撓曲檢核</h3>
+          <table className="mt-2 border-collapse">
+            <tbody>
+              <tr>
+                <td className={td}>支撐方式</td>
+                <td className={`${td} text-right`}>{r.deflectionResult.supportName}</td>
+              </tr>
+              <tr>
+                <td className={td}>L/D</td>
+                <td className={`${td} text-right`}>{fmt(r.deflectionResult.ldRatio, 1)}</td>
+              </tr>
+              <tr>
+                <td className={td}>彎曲合力</td>
+                <td className={`${td} text-right`}>{fmt(r.deflectionResult.fBend, 0)} N</td>
+              </tr>
+              <tr>
+                <td className={`${td} font-semibold`}>最大撓曲量 δ</td>
+                <td className={`${td} text-right font-bold`}>{fmt(r.deflectionResult.deflection, 4)} mm</td>
+              </tr>
+              <tr>
+                <td className={td}>允許值</td>
+                <td className={`${td} text-right`}>
+                  {fmt(r.deflectionResult.limit, 3)} mm（{r.deflectionResult.ok ? '✓ 通過' : '✗ 超限'}）
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {r.deflectionResult.advice.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 text-sm text-amber-700">
+              {r.deflectionResult.advice.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <p className="mt-6 border-t border-slate-200 pt-2 text-xs text-slate-400">
         本報告由車床主軸馬達選型工具產出（{today}）。所有標記「假設值 / 須核對」之項目，須於設計審查前完成確認。

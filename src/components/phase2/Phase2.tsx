@@ -2,10 +2,19 @@ import { useState } from 'react'
 import { Download, FileUp, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { BUILT_IN_MOTORS } from '../../data/motors'
 import { constantPowerRatio, estimateEfficiency, ratedTorque } from '../../engine/motorSelection'
+import { BEARING_TYPES, type BearingType } from '../../engine/spindleLosses'
 import type { Motor } from '../../engine/types'
 import { fmt } from '../../lib/format'
 import { useProjectStore } from '../../store/projectStore'
-import { getDutyResults, getMaxPc, getMotorList, getPMin } from '../../store/selectors'
+import {
+  getCandidateEvaluation,
+  getDutyPoints,
+  getEffectiveDutyResults,
+  getMaxPc,
+  getMotorList,
+  getPMin,
+  getSpindleLossAt,
+} from '../../store/selectors'
 import { downloadText } from '../layout/Header'
 import { Badge, Field, NumInput, Section } from '../ui'
 
@@ -15,6 +24,7 @@ function blankMotor(): Motor {
     brand: '',
     model: '',
     powerS1: 15,
+    powerS3: null,
     nBase: 1500,
     nMax: 6000,
     inertia: null,
@@ -57,6 +67,14 @@ function MotorForm({
         </Field>
         <Field label="S1 額定功率" unit="kW">
           <NumInput value={m.powerS1} onChange={(v) => patch({ powerS1: v })} step={0.5} min={0} />
+        </Field>
+        <Field label="S3/30min 額定（可空）" unit="kW">
+          <NumInput
+            value={m.powerS3 ?? NaN}
+            onChange={(v) => patch({ powerS3: Number.isFinite(v) ? v : null })}
+            step={0.5}
+            min={0}
+          />
         </Field>
         <Field label="基底轉速 n_base" unit="rpm">
           <NumInput value={m.nBase} onChange={(v) => patch({ nBase: v })} step={50} min={1} />
@@ -125,10 +143,18 @@ function MotorForm({
 
 export function Phase2() {
   const s = useProjectStore()
-  const results = getDutyResults(s.cases)
+  const results = getEffectiveDutyResults(s)
   const maxPc = getMaxPc(results)
   const pMin = getPMin(s, results)
   const motors = getMotorList(s)
+  const points = getDutyPoints(s.cases, results)
+  const candidates = s.cases.length > 0 ? motors.filter((m) => m.powerS1 >= pMin) : []
+  const evaluation = getCandidateEvaluation(s, points, candidates)
+  // 「建議」：全點覆蓋者中 S1 功率最小的馬達
+  const recommendedId =
+    [...candidates]
+      .filter((m) => evaluation.get(m.id)?.covered)
+      .sort((a, b) => a.powerS1 - b.powerS1)[0]?.id ?? null
   const [editingId, setEditingId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
 
@@ -297,13 +323,15 @@ export function Phase2() {
                 <th className={th}>選定</th>
                 <th className={th}>品牌 / 型號</th>
                 <th className={`${th} text-right`}>S1 [kW]</th>
+                <th className={`${th} text-right`}>S3 [kW]</th>
                 <th className={`${th} text-right`}>n_base [rpm]</th>
                 <th className={`${th} text-right`}>n_max [rpm]</th>
                 <th className={`${th} text-right`}>R_cp</th>
-                <th className={`${th} text-right`}>T_rated [N·m]</th>
+                <th className={`${th} text-right`} title="T = 9550 × P / n — 9550 = 60000/(2π) ≈ 9549.3 的工程慣用值">T_rated [N·m]</th>
                 <th className={`${th} text-right`}>J [kg·m²]</th>
                 <th className={th}>電壓</th>
                 <th className={th}>狀態</th>
+                <th className={th}>覆蓋評估</th>
               </tr>
             </thead>
             <tbody>
@@ -313,7 +341,7 @@ export function Phase2() {
                 if (editingId === m.id)
                   return (
                     <tr key={m.id}>
-                      <td colSpan={10} className="py-2">
+                      <td colSpan={12} className="py-2">
                         <MotorForm initial={m} onSave={saveMotor} onCancel={() => setEditingId(null)} />
                       </td>
                     </tr>
@@ -359,6 +387,7 @@ export function Phase2() {
                       </div>
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmt(m.powerS1, 1)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-slate-400">{m.powerS3 != null ? fmt(m.powerS3, 1) : '—'}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmt(m.nBase, 0)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmt(m.nMax, 0)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmt(constantPowerRatio(m), 2)}</td>
@@ -369,8 +398,28 @@ export function Phase2() {
                       <div className="flex flex-wrap gap-1">
                         {s.cases.length > 0 &&
                           (candidate ? <Badge kind="ok">候選</Badge> : <Badge kind="error">功率不足</Badge>)}
+                        {m.powerS3 != null && m.powerS3 >= pMin && !candidate && s.cases.length > 0 && (
+                          <Badge kind="warn">僅 S3 候選</Badge>
+                        )}
                         {!m.verified && <Badge kind="warn">須核對</Badge>}
                       </div>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {candidate && (() => {
+                        const ev = evaluation.get(m.id)
+                        if (!ev) return null
+                        if (ev.covered) {
+                          const pct = ev.maxUtil != null ? fmt(ev.maxUtil * 100, 0) : '—'
+                          return (
+                            <div className="flex flex-wrap items-center gap-1">
+                              <Badge kind="ok">覆蓋</Badge>
+                              <span className="text-xs tabular-nums text-slate-500">{pct}%</span>
+                              {m.id === recommendedId && <Badge kind="ok">建議</Badge>}
+                            </div>
+                          )
+                        }
+                        return <span className="text-xs text-slate-400">需調齒比</span>
+                      })()}
                     </td>
                   </tr>
                 )
@@ -378,6 +427,80 @@ export function Phase2() {
             </tbody>
           </table>
         </div>
+        {s.cases.length > 0 && (
+          <p className="mt-2 text-xs text-slate-400">
+            覆蓋評估基於目前 Phase 3 齒比設定，調整齒比後結果會變。負載率 = max(T_sp / T_avail) × 100%。
+          </p>
+        )}
+      </Section>
+
+      <Section title="主軸機械損失（選用）">
+        <div className="mb-3 flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={s.lossConfig.enabled}
+              onChange={(e) => s.setLossConfig({ enabled: e.target.checked })}
+            />
+            啟用機械損失估算（軸承摩擦 + 風阻）
+          </label>
+          {s.lossConfig.enabled && (
+            <Badge kind="warn">損失已計入全部工況 T_sp / Pc</Badge>
+          )}
+        </div>
+        {s.lossConfig.enabled && (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {s.lossConfig.bearings.map((b, i) => (
+                <div key={`brg-${i}`} className="rounded border border-slate-200 p-3">
+                  <div className="mb-2 text-sm font-semibold text-slate-600">軸承 {i + 1}</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Field label="型式">
+                      <select
+                        value={b.type}
+                        onChange={(e) => s.setLossBearing(i, { type: e.target.value as BearingType })}
+                        className="w-full rounded border border-slate-300 px-1 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                      >
+                        {(Object.keys(BEARING_TYPES) as BearingType[]).map((t) => (
+                          <option key={t} value={t}>{BEARING_TYPES[t].name}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="節圓徑 dm" unit="mm">
+                      <NumInput value={b.dm} onChange={(v) => s.setLossBearing(i, { dm: v })} step={10} min={10} />
+                    </Field>
+                    <Field label="預壓當量" unit="N">
+                      <NumInput value={b.preload} onChange={(v) => s.setLossBearing(i, { preload: v })} step={1000} min={100} />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Field label="潤滑劑運轉黏度" unit="cSt">
+                <NumInput value={s.lossConfig.lubeViscosity} onChange={(v) => s.setLossConfig({ lubeViscosity: v })} step={5} min={1} />
+              </Field>
+              <Field label="夾頭外徑" unit="mm">
+                <NumInput value={s.lossConfig.chuckDia} onChange={(v) => s.setLossConfig({ chuckDia: v })} step={50} min={50} />
+              </Field>
+              <Field label="夾頭厚度" unit="mm">
+                <NumInput value={s.lossConfig.chuckLen} onChange={(v) => s.setLossConfig({ chuckLen: v })} step={10} min={10} />
+              </Field>
+            </div>
+            {s.cases.length > 0 && (() => {
+              const worst = results.reduce((max, r) => r.nSp > max.nSp ? r : max, results[0])
+              const loss = worst ? getSpindleLossAt(s, worst.nSp) : null
+              if (!loss) return null
+              return (
+                <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  最高轉速工況 ({fmt(worst.nSp, 0)} rpm) 機械損失：T_loss = {fmt(loss.tTotal, 2)} N·m、
+                  P_loss = {fmt(loss.pTotal / 1000, 3)} kW
+                  <span className="ml-2 text-amber-600">（Palmgren 經驗式＋紊流風阻，係數為代表值）</span>
+                </div>
+              )
+            })()}
+          </div>
+        )}
       </Section>
     </div>
   )

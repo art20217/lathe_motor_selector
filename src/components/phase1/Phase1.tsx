@@ -8,9 +8,15 @@ import {
   type Material,
   type OperationType,
 } from '../../engine/types'
+import {
+  CHIP_THICKNESS_MIN,
+  DEFAULT_FF_RATIO,
+  DEFAULT_FP_RATIO,
+} from '../../engine/cutting'
+import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
 import { fmt } from '../../lib/format'
 import { useProjectStore } from '../../store/projectStore'
-import { getDutyResults, getMaxPc } from '../../store/selectors'
+import { getEffectiveDutyResults, getMaxPc, getSpindleLossAt } from '../../store/selectors'
 import { Badge, Field, NumInput, Section } from '../ui'
 
 function newCase(seq: number): DutyCase {
@@ -22,6 +28,8 @@ function newCase(seq: number): DutyCase {
     material: mat.name,
     kc1: mat.kc1,
     mc: mat.mc,
+    ffRatio: mat.ffRatio ?? DEFAULT_FF_RATIO,
+    fpRatio: mat.fpRatio ?? DEFAULT_FP_RATIO,
     D: 500,
     ap: 5,
     fn: 0.4,
@@ -49,6 +57,8 @@ function blankMaterial(): Material {
     isoGroup: 'P',
     kc1: 1600,
     mc: 0.25,
+    ffRatio: DEFAULT_FF_RATIO,
+    fpRatio: DEFAULT_FP_RATIO,
     source: '',
     verified: false,
   }
@@ -97,6 +107,22 @@ function MaterialForm({
         <Field label="mc">
           <NumInput value={m.mc} onChange={(v) => patch({ mc: v })} step={0.01} min={0} />
         </Field>
+        <Field label="進給分力比 Ff/Fc">
+          <NumInput
+            value={m.ffRatio ?? DEFAULT_FF_RATIO}
+            onChange={(v) => patch({ ffRatio: v })}
+            step={0.05}
+            min={0}
+          />
+        </Field>
+        <Field label="背分力比 Fp/Fc">
+          <NumInput
+            value={m.fpRatio ?? DEFAULT_FP_RATIO}
+            onChange={(v) => patch({ fpRatio: v })}
+            step={0.05}
+            min={0}
+          />
+        </Field>
       </div>
       <div className="mt-3 flex items-center gap-3">
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
@@ -129,11 +155,101 @@ function MaterialForm({
   )
 }
 
+/** 工件撓曲/支撐檢核：彎曲合力自動取全工況最惡劣者（√(Fc²+Fp²) 最大） */
+function DeflectionSection() {
+  const s = useProjectStore()
+  const cfg = s.deflection
+  const results = getEffectiveDutyResults(s)
+
+  let worst: { name: string; fc: number; fp: number; bend: number } | null = null
+  for (const r of results) {
+    if (r.Fc === null) continue
+    const bend = Math.hypot(r.Fc, r.Fp ?? 0)
+    if (!worst || bend > worst.bend) {
+      const c = s.cases.find((x) => x.id === r.caseId)
+      worst = { name: c?.name ?? r.caseId, fc: r.Fc, fp: r.Fp ?? 0, bend }
+    }
+  }
+  const defl = worst
+    ? deflectionCheck(
+        cfg.support,
+        cfg.diameter,
+        cfg.length,
+        worst.fc,
+        worst.fp,
+        cfg.eGpa * 1e9,
+        cfg.limit,
+        cfg.bore,
+      )
+    : null
+
+  return (
+    <Section title="工件撓曲 / 支撐檢核">
+      <p className="mb-3 text-xs leading-relaxed text-slate-500">
+        以最惡劣工況的彎曲合力 √(Fc²+Fp²) 檢核工件剛性（懸臂 δ=FL³/3EI、夾頭＋尾座
+        δ=FL³/110EI、兩頂心 δ=FL³/48EI）。直接輸入 (n,T) 型態的工況無切削力，不列入。
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Field label="支撐方式">
+          <select
+            value={cfg.support}
+            onChange={(e) => s.setDeflection({ support: e.target.value as SupportType })}
+            className="w-full rounded border border-slate-300 px-1 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          >
+            {Object.entries(SUPPORT_FACTOR).map(([v, f]) => (
+              <option key={v} value={v}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="工件直徑（最小斷面）" unit="mm">
+          <NumInput value={cfg.diameter} onChange={(v) => s.setDeflection({ diameter: v })} step={10} min={1} />
+        </Field>
+        <Field label="懸伸長 / 跨距 L" unit="mm">
+          <NumInput value={cfg.length} onChange={(v) => s.setDeflection({ length: v })} step={100} min={1} />
+        </Field>
+        <Field label="內孔徑" unit="mm">
+          <NumInput value={cfg.bore} onChange={(v) => s.setDeflection({ bore: v })} step={10} min={0} />
+        </Field>
+        <Field label="楊氏模數 E" unit="GPa">
+          <NumInput value={cfg.eGpa} onChange={(v) => s.setDeflection({ eGpa: v })} step={1} min={1} />
+        </Field>
+        <Field label="允許撓曲" unit="mm">
+          <NumInput value={cfg.limit} onChange={(v) => s.setDeflection({ limit: v })} step={0.005} min={0.001} />
+        </Field>
+      </div>
+      {defl && worst && (
+        <div className="mt-3 rounded bg-slate-50 px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 tabular-nums">
+            <span className="text-slate-600">
+              彎曲合力 {fmt(defl.fBend, 0)} N（來源：{worst.name}）
+            </span>
+            <span className="text-slate-600">L/D = {fmt(defl.ldRatio, 1)}</span>
+            <span>
+              最大撓曲 δ = <b>{fmt(defl.deflection, 4)}</b> mm（允許 {fmt(defl.limit, 3)} mm）
+            </span>
+            {defl.ok ? <Badge kind="ok">✓ 通過</Badge> : <Badge kind="error">✗ 超出允許值</Badge>}
+          </div>
+          {defl.advice.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
+              {defl.advice.map((a) => (
+                <li key={a}>⚠ {a}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 /** 單一工況卡片：所有輸入與操作按鈕都在可視範圍內，不需水平捲動 */
 function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: boolean }) {
   const s = useProjectStore()
   const direct = c.operation === 'direct'
   const allMaterials = [...s.customMaterials, ...BUILT_IN_MATERIALS]
+  const loss = getSpindleLossAt(s, r.nSp)
 
   return (
     <div
@@ -220,7 +336,13 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
                   s.updateCase(
                     c.id,
                     mat
-                      ? { material: mat.name, kc1: mat.kc1, mc: mat.mc }
+                      ? {
+                          material: mat.name,
+                          kc1: mat.kc1,
+                          mc: mat.mc,
+                          ffRatio: mat.ffRatio ?? DEFAULT_FF_RATIO,
+                          fpRatio: mat.fpRatio ?? DEFAULT_FP_RATIO,
+                        }
                       : { material: e.target.value },
                   )
                 }}
@@ -279,10 +401,22 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
         <span className="text-xs font-medium text-slate-400">計算結果</span>
         {!direct && (
           <>
-            <span className="text-slate-600">h = {fmt(r.h, 3)} mm</span>
+            <span className="text-slate-600">
+              h = {fmt(r.h, 3)} mm
+              {c.fn * Math.sin((c.kappaR * Math.PI) / 180) < CHIP_THICKNESS_MIN && (
+                <span className="ml-1"><Badge kind="warn">已鉗制下限 {CHIP_THICKNESS_MIN} mm</Badge></span>
+              )}
+            </span>
             <span className="text-slate-600">kc = {fmt(r.kc, 0)} N/mm²</span>
             <span className="text-slate-600">Fc = {fmt(r.Fc, 0)} N</span>
+            <span className="text-slate-500">Ff = {fmt(r.Ff, 0)} N</span>
+            <span className="text-slate-500">Fp = {fmt(r.Fp, 0)} N</span>
           </>
+        )}
+        {loss && (
+          <span className="text-amber-700">
+            含損失 +{fmt(loss.tTotal, 1)} N·m / +{fmt(loss.pTotal / 1000, 2)} kW
+          </span>
         )}
         <span>
           Pc = <b>{fmt(r.Pc, 2)}</b> kW
@@ -300,7 +434,7 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
 
 export function Phase1() {
   const s = useProjectStore()
-  const results = getDutyResults(s.cases)
+  const results = getEffectiveDutyResults(s)
   const maxPc = getMaxPc(results)
   const maxT = results.length ? Math.max(...results.map((r) => r.TSp)) : 0
   const [flashId, setFlashId] = useState<string | null>(null)
@@ -434,6 +568,8 @@ export function Phase1() {
           </div>
         )}
       </Section>
+
+      {results.length > 0 && <DeflectionSection />}
 
       {results.length > 0 && (
         <Section title="Phase 1 輸出摘要">

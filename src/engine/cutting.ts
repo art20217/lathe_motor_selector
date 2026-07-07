@@ -8,9 +8,16 @@ import { TORQUE_CONST, type DutyCase, type DutyResult } from './types'
 
 const DEG = Math.PI / 180
 
-/** 切屑厚度 h = fn·sin(κr) [mm] */
+/** Kienzle 外插下限：h 過小時 kc = kc1·h⁻ᵐᶜ 發散，比照業界工具鉗制於 0.01 mm */
+export const CHIP_THICKNESS_MIN = 0.01
+
+/** 進給/背分力比缺省值（ISO P 群經驗值；舊專案資料無此欄位時使用） */
+export const DEFAULT_FF_RATIO = 0.4
+export const DEFAULT_FP_RATIO = 0.3
+
+/** 切屑厚度 h = fn·sin(κr) [mm]，下限鉗制於 CHIP_THICKNESS_MIN */
 export function chipThickness(fn: number, kappaRDeg: number): number {
-  return fn * Math.sin(kappaRDeg * DEG)
+  return Math.max(fn * Math.sin(kappaRDeg * DEG), CHIP_THICKNESS_MIN)
 }
 
 /** 修正後比切削力 kc = kc1·h⁻ᵐᶜ·(1 − (γ0 − γref)/100) [N/mm²] */
@@ -39,7 +46,7 @@ export function spindleSpeed(vc: number, D: number): number {
   return (1000 * vc) / (Math.PI * D)
 }
 
-/** 主軸端所需扭矩 T_sp = Pc·9549 / n_sp [N·m] */
+/** 主軸端所需扭矩 T_sp = Pc·9550 / n_sp [N·m] */
 export function spindleTorque(Pc: number, nSp: number): number {
   return (Pc * TORQUE_CONST) / nSp
 }
@@ -52,7 +59,7 @@ export function spindleTorqueFromForce(Fc: number, D: number): number {
 /**
  * 計算單一工況的主軸端座標。
  * direct 模式（螺紋等由廠商工具計算的工況）直接採用給定 (n, T)，
- * 功率由 P = T·n/9549 反推。
+ * 功率由 P = T·n/9550 反推。
  */
 export function computeDuty(c: DutyCase): DutyResult {
   if (c.operation === 'direct') {
@@ -63,7 +70,9 @@ export function computeDuty(c: DutyCase): DutyResult {
       h: null,
       kc: null,
       Fc: null,
-      Pc: (TSp * nSp) / TORQUE_CONST, // P [kW] = T·n / 9549
+      Ff: null,
+      Fp: null,
+      Pc: (TSp * nSp) / TORQUE_CONST, // P [kW] = T·n / 9550
       nSp,
       TSp,
       TSpCross: null,
@@ -79,6 +88,8 @@ export function computeDuty(c: DutyCase): DutyResult {
     h,
     kc,
     Fc,
+    Ff: (c.ffRatio ?? DEFAULT_FF_RATIO) * Fc,
+    Fp: (c.fpRatio ?? DEFAULT_FP_RATIO) * Fc,
     Pc,
     nSp,
     TSp: spindleTorque(Pc, nSp),

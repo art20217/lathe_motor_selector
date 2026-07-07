@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import {
   accelTime,
+  accelTimeCurve,
   cylinderMass,
   hollowCylinderInertia,
   reflectedInertia,
   solidCylinderInertia,
 } from '../../engine/dynamics'
 import { ratedTorque } from '../../engine/motorSelection'
+import type { MotorRating } from '../../engine/tnCurve'
 import { fmt } from '../../lib/format'
 import { useProjectStore, type CheckItem } from '../../store/projectStore'
 import { getSelectedMotor } from '../../store/selectors'
@@ -52,6 +55,7 @@ export function Phase4() {
   const motor = getSelectedMotor(s)
   const d = s.dynamics
   const gear = s.gears[d.gearIndex]
+  const [rating, setRating] = useState<MotorRating>('s1')
 
   // mm → m
   const rOuter = d.wpOuterDia / 2000
@@ -71,9 +75,16 @@ export function Phase4() {
   const tFriction = tRated !== null ? (tRated * d.frictionPct) / 100 : null
   const tAccTorque = tRated !== null && tFriction !== null ? tRated - tFriction : null
   const deltaNMotor = gear ? d.deltaNSp / gear.ratio : null
-  const tAcc =
+  const tAccLinear =
     jTotal !== null && deltaNMotor !== null && tAccTorque !== null && tAccTorque > 0
       ? accelTime(jTotal, deltaNMotor, tAccTorque)
+      : null
+
+  const nFromMotor = 0
+  const nToMotor = deltaNMotor !== null ? Math.abs(deltaNMotor) : null
+  const tAccIntegral =
+    motor && jTotal !== null && nToMotor !== null && tFriction !== null
+      ? accelTimeCurve(motor, rating, jTotal, nFromMotor, nToMotor, tFriction)
       : null
 
   return (
@@ -187,17 +198,46 @@ export function Phase4() {
                 <td className="pr-6 text-slate-500">馬達端轉速變化 Δn = Δn_sp / i</td>
                 <td className="text-right font-medium tabular-nums">{deltaNMotor === null ? '—' : `${fmt(deltaNMotor, 0)} rpm`}</td>
               </tr>
-              <tr>
-                <td className="pr-6 pt-1 text-slate-700">加速時間 t_acc = J_total·Δω / T_acc</td>
-                <td className="pt-1 text-right text-lg font-bold tabular-nums text-blue-700">
-                  {tAcc === null ? '—' : `${fmt(tAcc, 2)} s`}
-                </td>
-              </tr>
             </tbody>
           </table>
-          {tAcc !== null && d.requiredTime !== null && (
+
+          <div className="mt-3 border-t border-blue-200 pt-3">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-600">額定選擇</span>
+              <select
+                value={rating}
+                onChange={(e) => setRating(e.target.value as MotorRating)}
+                className="rounded border border-slate-300 px-1.5 py-0.5 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                <option value="s1">S1 連續額定</option>
+                <option value="s3" disabled={!motor?.powerS3}>S3/30min 額定{motor?.powerS3 ? '' : '（未設定）'}</option>
+              </select>
+              <span className="text-xs text-slate-400">（加速屬短時工況，可選用 S3 額定計算）</span>
+            </div>
+            <table className="text-sm">
+              <tbody>
+                <tr>
+                  <td className="pr-6 pt-1 text-slate-700">數值積分 t_acc（沿 T-n 曲線）</td>
+                  <td className="pt-1 text-right text-lg font-bold tabular-nums text-blue-700">
+                    {tAccIntegral === null ? '—' : `${fmt(tAccIntegral, 2)} s`}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="pr-6 text-slate-400">線性近似 t_acc = J·Δω / T_acc</td>
+                  <td className="text-right tabular-nums text-slate-400">
+                    {tAccLinear === null ? '—' : `${fmt(tAccLinear, 2)} s`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="mt-1 text-xs text-slate-400">
+              線性近似假設扭矩恆定，恆功率區扭矩下降時偏樂觀；數值積分沿實際 T-n 曲線步進，結果更準確。
+            </p>
+          </div>
+
+          {tAccIntegral !== null && d.requiredTime !== null && (
             <div className="mt-2">
-              {tAcc <= d.requiredTime ? (
+              {tAccIntegral <= d.requiredTime ? (
                 <Badge kind="ok">✓ 符合規格要求（≤ {fmt(d.requiredTime, 1)} s）</Badge>
               ) : (
                 <Badge kind="error">✗ 超出規格要求（≤ {fmt(d.requiredTime, 1)} s）→ 檢討馬達扭矩或加減速規格</Badge>

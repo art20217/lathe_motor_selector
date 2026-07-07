@@ -31,8 +31,8 @@ describe('Phase 2 馬達候選篩選', () => {
     expect(minMotorPower(24.3, 0.859, 1.4)).toBeCloseTo((24.3 / 0.859) * 1.4, 6)
   })
 
-  it('額定扭矩 T_rated = P·9549/n_base', () => {
-    expect(ratedTorque(22, 1500)).toBeCloseTo(140.052, 3)
+  it('額定扭矩 T_rated = P·9550/n_base', () => {
+    expect(ratedTorque(22, 1500)).toBeCloseTo((22 * 9550) / 1500, 3)
   })
 
   it('恆功率區速比 R_cp = n_max/n_base', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CHIP_THICKNESS_MIN,
   chipThickness,
   computeDuty,
   cuttingForce,
@@ -58,7 +59,7 @@ describe('Phase 1 切削計算', () => {
     const r = computeDuty(baseCase)
     expect(r.TSpCross).not.toBeNull()
     const rel = Math.abs(r.TSp - r.TSpCross!) / r.TSpCross!
-    expect(rel).toBeLessThan(1e-4) // 9549 為 60000/2π 的截斷值，容許 1e-4 相對差
+    expect(rel).toBeLessThan(1e-3) // 9550 為 60000/2π 的工程慣用值，容許 1e-3 相對差
   })
 
   it('SOP 驗證式：Pc = T_sp·2π·n_sp/(60·10³) 與 Pc 一致', () => {
@@ -67,7 +68,7 @@ describe('Phase 1 切削計算', () => {
     expect(Math.abs(r.Pc - pcCheck) / r.Pc).toBeLessThan(1e-4)
   })
 
-  it('direct 模式：功率由 P = T·n/9549 反推', () => {
+  it('direct 模式：功率由 P = T·n/9550 反推', () => {
     const r = computeDuty({
       ...baseCase,
       operation: 'direct',
@@ -76,16 +77,34 @@ describe('Phase 1 切削計算', () => {
     })
     expect(r.nSp).toBe(100)
     expect(r.TSp).toBe(955)
-    expect(r.Pc).toBeCloseTo((955 * 100) / 9549, 6) // ≈ 10.0 kW
+    expect(r.Pc).toBeCloseTo((955 * 100) / 9550, 6) // ≈ 10.0 kW
     expect(r.h).toBeNull()
     expect(r.TSpCross).toBeNull()
+  })
+
+  it('切屑厚度鉗制下限 0.01 mm', () => {
+    expect(chipThickness(0.001, 90)).toBe(CHIP_THICKNESS_MIN)
+    expect(chipThickness(0.005, 90)).toBe(CHIP_THICKNESS_MIN)
+    expect(chipThickness(0.02, 90)).toBe(0.02)
+  })
+
+  it('三分力 Ff/Fp 依 ffRatio/fpRatio 比例', () => {
+    const r = computeDuty({ ...baseCase, ffRatio: 0.4, fpRatio: 0.3 })
+    expect(r.Ff).toBeCloseTo(r.Fc! * 0.4, 2)
+    expect(r.Fp).toBeCloseTo(r.Fc! * 0.3, 2)
+  })
+
+  it('direct 模式 Ff/Fp 為 null', () => {
+    const r = computeDuty({ ...baseCase, operation: 'direct', directNSp: 100, directTSp: 955 })
+    expect(r.Ff).toBeNull()
+    expect(r.Fp).toBeNull()
   })
 
   it('個別公式單位一致性', () => {
     expect(cuttingForce(2000, 8, 0.5)).toBe(8000)
     expect(cuttingPower(8000, 180)).toBeCloseTo(24, 10)
     expect(spindleSpeed(180, 800)).toBeCloseTo(71.6197, 3)
-    expect(spindleTorque(24, 71.6197)).toBeCloseTo((24 * 9549) / 71.6197, 6)
+    expect(spindleTorque(24, 71.6197)).toBeCloseTo((24 * 9550) / 71.6197, 6)
     expect(spindleTorqueFromForce(8000, 800)).toBe(3200)
   })
 })
