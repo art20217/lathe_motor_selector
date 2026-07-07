@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { DutyCase, Gear, Motor } from '../engine/types'
+import type { DutyCase, Gear, Material, Motor } from '../engine/types'
 
 export const SCHEMA_VERSION = 1
 
@@ -50,6 +50,8 @@ export interface ProjectState {
   projectName: string
   // Phase 1
   cases: DutyCase[]
+  /** 使用者自訂材料（與內建參考庫合併顯示於材料下拉選單） */
+  customMaterials: Material[]
   // Phase 2
   etaTotal: number
   /** true = etaTotal 由單級效率^級數估算（假設值，報告須標記） */
@@ -80,6 +82,9 @@ export interface ProjectActions {
   updateCase: (id: string, patch: Partial<DutyCase>) => void
   removeCase: (id: string) => void
   duplicateCase: (id: string) => void
+  addMaterial: (m: Material) => void
+  updateMaterial: (id: string, patch: Partial<Material>) => void
+  removeMaterial: (id: string) => void
   setEta: (patch: Partial<Pick<ProjectState, 'etaTotal' | 'etaIsEstimated' | 'etaStageEff' | 'etaStages'>>) => void
   setSf: (sf: number) => void
   addMotor: (m: Motor) => void
@@ -110,6 +115,7 @@ const initialState: ProjectState = {
   schemaVersion: SCHEMA_VERSION,
   projectName: '未命名選型案',
   cases: [],
+  customMaterials: [],
   etaTotal: 0.85,
   etaIsEstimated: true,
   etaStageEff: 0.97,
@@ -161,6 +167,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           const copy = { ...src, id: crypto.randomUUID(), name: `${src.name}（複製）` }
           return { cases: [...s.cases, copy] }
         }),
+      addMaterial: (m) => set((s) => ({ customMaterials: [...s.customMaterials, m] })),
+      updateMaterial: (id, patch) =>
+        set((s) => ({
+          customMaterials: s.customMaterials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+        })),
+      removeMaterial: (id) =>
+        set((s) => ({ customMaterials: s.customMaterials.filter((m) => m.id !== id) })),
       setEta: (patch) => set(patch),
       setSf: (sf) => set({ sf }),
       addMotor: (m) => set((s) => ({ customMotors: [...s.customMotors, m] })),
@@ -191,7 +204,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             [key]: s[key].map((i) => (i.id === id ? { ...i, ...patch } : i)),
           }
         }),
-      importProject: (data) => set({ ...data, schemaVersion: SCHEMA_VERSION }),
+      importProject: (data) =>
+        set({
+          ...data,
+          // 舊版專案檔可能沒有此欄位，避免匯入後殘留前一份專案的資料
+          customMaterials: data.customMaterials ?? [],
+          schemaVersion: SCHEMA_VERSION,
+        }),
       resetProject: () => set(initialState),
     }),
     { name: 'lathe-motor-selector', version: SCHEMA_VERSION },
@@ -204,6 +223,7 @@ export function serializeProject(s: ProjectState & ProjectActions): ProjectState
     schemaVersion: s.schemaVersion,
     projectName: s.projectName,
     cases: s.cases,
+    customMaterials: s.customMaterials,
     etaTotal: s.etaTotal,
     etaIsEstimated: s.etaIsEstimated,
     etaStageEff: s.etaStageEff,

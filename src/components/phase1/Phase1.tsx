@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Copy, Plus, Trash2 } from 'lucide-react'
+import { Copy, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { BUILT_IN_MATERIALS } from '../../data/materials'
 import {
   OPERATION_LABELS,
   type DutyCase,
   type DutyResult,
+  type Material,
   type OperationType,
 } from '../../engine/types'
 import { fmt } from '../../lib/format'
@@ -32,10 +33,107 @@ function newCase(seq: number): DutyCase {
   }
 }
 
+const ISO_GROUPS = [
+  { value: 'P', label: 'P — 鋼' },
+  { value: 'M', label: 'M — 不鏽鋼' },
+  { value: 'K', label: 'K — 鑄鐵' },
+  { value: 'N', label: 'N — 非鐵金屬' },
+  { value: 'S', label: 'S — 耐熱合金' },
+  { value: 'H', label: 'H — 高硬度材' },
+]
+
+function blankMaterial(): Material {
+  return {
+    id: crypto.randomUUID(),
+    name: '',
+    isoGroup: 'P',
+    kc1: 1600,
+    mc: 0.25,
+    source: '',
+    verified: false,
+  }
+}
+
+function MaterialForm({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: Material
+  onSave: (m: Material) => void
+  onCancel: () => void
+}) {
+  const [m, setM] = useState<Material>(initial)
+  const patch = (p: Partial<Material>) => setM((prev) => ({ ...prev, ...p }))
+  const valid = m.name.trim() && m.kc1 > 0 && m.mc > 0
+
+  return (
+    <div className="rounded border border-blue-200 bg-blue-50/50 p-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Field label="材料名稱">
+          <input
+            value={m.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            placeholder="如：SNCM439 調質"
+            className="w-full rounded border border-slate-300 px-1.5 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </Field>
+        <Field label="ISO 切削材料群">
+          <select
+            value={m.isoGroup}
+            onChange={(e) => patch({ isoGroup: e.target.value })}
+            className="w-full rounded border border-slate-300 px-1 py-1 text-sm focus:border-blue-500 focus:outline-none"
+          >
+            {ISO_GROUPS.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="kc1（h=1mm 基準）" unit="N/mm²">
+          <NumInput value={m.kc1} onChange={(v) => patch({ kc1: v })} step={50} min={0} />
+        </Field>
+        <Field label="mc">
+          <NumInput value={m.mc} onChange={(v) => patch({ mc: v })} step={0.01} min={0} />
+        </Field>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <label className="flex items-center gap-1.5 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={m.verified}
+            onChange={(e) => patch({ verified: e.target.checked })}
+          />
+          數據已核對刀具廠商手冊
+        </label>
+        <input
+          value={m.source}
+          onChange={(e) => patch({ source: e.target.value })}
+          placeholder="資料來源（廠商手冊頁次、測定條件…）"
+          className="flex-1 rounded border border-slate-300 px-1.5 py-1 text-sm focus:border-blue-500 focus:outline-none"
+        />
+        <button
+          type="button"
+          disabled={!valid}
+          onClick={() => onSave(m)}
+          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40"
+        >
+          儲存
+        </button>
+        <button type="button" onClick={onCancel} className="p-1.5 text-slate-400 hover:text-slate-600">
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /** 單一工況卡片：所有輸入與操作按鈕都在可視範圍內，不需水平捲動 */
 function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: boolean }) {
   const s = useProjectStore()
   const direct = c.operation === 'direct'
+  const allMaterials = [...s.customMaterials, ...BUILT_IN_MATERIALS]
 
   return (
     <div
@@ -118,7 +216,7 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
               <select
                 value={c.material}
                 onChange={(e) => {
-                  const mat = BUILT_IN_MATERIALS.find((m) => m.name === e.target.value)
+                  const mat = allMaterials.find((m) => m.name === e.target.value)
                   s.updateCase(
                     c.id,
                     mat
@@ -128,14 +226,25 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
                 }}
                 className="w-full rounded border border-slate-300 px-1 py-1 text-sm focus:border-blue-500 focus:outline-none"
               >
-                {!BUILT_IN_MATERIALS.some((m) => m.name === c.material) && (
+                {!allMaterials.some((m) => m.name === c.material) && (
                   <option value={c.material}>{c.material}</option>
                 )}
-                {BUILT_IN_MATERIALS.map((m) => (
-                  <option key={m.id} value={m.name}>
-                    {m.name}
-                  </option>
-                ))}
+                {s.customMaterials.length > 0 && (
+                  <optgroup label="自訂材料">
+                    {s.customMaterials.map((m) => (
+                      <option key={m.id} value={m.name}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="內建參考庫">
+                  {BUILT_IN_MATERIALS.map((m) => (
+                    <option key={m.id} value={m.name}>
+                      {m.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </Field>
           </div>
@@ -195,11 +304,21 @@ export function Phase1() {
   const maxPc = getMaxPc(results)
   const maxT = results.length ? Math.max(...results.map((r) => r.TSp)) : 0
   const [flashId, setFlashId] = useState<string | null>(null)
+  const [addingMat, setAddingMat] = useState(false)
+  const [editingMatId, setEditingMatId] = useState<string | null>(null)
+  const editingMat = s.customMaterials.find((m) => m.id === editingMatId)
 
   const handleAdd = () => {
     const c = newCase(s.cases.length + 1)
     s.addCase(c)
     setFlashId(c.id)
+  }
+
+  const saveMaterial = (m: Material) => {
+    if (s.customMaterials.some((x) => x.id === m.id)) s.updateMaterial(m.id, m)
+    else s.addMaterial(m)
+    setAddingMat(false)
+    setEditingMatId(null)
   }
 
   useEffect(() => {
@@ -216,13 +335,25 @@ export function Phase1() {
       <Section
         title="Step 1.1–1.3 設計工況矩陣"
         aside={
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Plus size={15} /> 新增工況
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAddingMat(true)
+                setEditingMatId(null)
+              }}
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <Plus size={15} /> 新增材料
+            </button>
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Plus size={15} /> 新增工況
+            </button>
+          </div>
         }
       >
         <p className="mb-3 text-xs leading-relaxed text-slate-500">
@@ -231,6 +362,61 @@ export function Phase1() {
           Sandvik CoroPlus ToolGuide）計算後，用「直接輸入 (n, T)」型態填入結果。新增的工況會帶入
           S45C 與常用切削條件作為起始值，全部欄位皆可修改。
         </p>
+        {addingMat && (
+          <div className="mb-3">
+            <MaterialForm
+              initial={blankMaterial()}
+              onSave={saveMaterial}
+              onCancel={() => setAddingMat(false)}
+            />
+          </div>
+        )}
+        {editingMat && (
+          <div className="mb-3">
+            <MaterialForm
+              key={editingMat.id}
+              initial={editingMat}
+              onSave={saveMaterial}
+              onCancel={() => setEditingMatId(null)}
+            />
+          </div>
+        )}
+        {s.customMaterials.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-medium text-slate-500">自訂材料</span>
+            {s.customMaterials.map((m) => (
+              <span
+                key={m.id}
+                className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1"
+              >
+                <span className="font-medium">{m.name}</span>
+                <span className="tabular-nums text-slate-400">
+                  kc1 {m.kc1}・mc {m.mc}
+                </span>
+                {!m.verified && <Badge kind="warn">須核對</Badge>}
+                <button
+                  type="button"
+                  title="編輯"
+                  onClick={() => {
+                    setEditingMatId(m.id)
+                    setAddingMat(false)
+                  }}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  type="button"
+                  title="刪除"
+                  onClick={() => s.removeMaterial(m.id)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {s.cases.length === 0 ? (
           <button
             type="button"

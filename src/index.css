@@ -7,6 +7,9 @@
 html {
   background-color: var(--color-slate-100);
   color: var(--color-slate-800);
+  /* 固定保留垂直捲軸空間：避免切換 Phase 時因內容高度不同、
+     捲軸出現/消失，導致置中版面左右跳動 */
+  scrollbar-gutter: stable;
 }
 
 @media print {
