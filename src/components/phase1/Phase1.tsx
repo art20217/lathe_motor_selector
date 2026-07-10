@@ -36,7 +36,7 @@ function newCase(seq: number): DutyCase {
     vc: 180,
     kappaR: 95,
     gamma0: 6,
-    gammaRef: 6,
+    gammaRef: mat.gammaRef ?? 6,
     note: '',
   }
 }
@@ -57,6 +57,7 @@ function blankMaterial(): Material {
     isoGroup: 'P',
     kc1: 1600,
     mc: 0.25,
+    gammaRef: 6,
     ffRatio: DEFAULT_FF_RATIO,
     fpRatio: DEFAULT_FP_RATIO,
     source: '',
@@ -107,6 +108,13 @@ function MaterialForm({
         <Field label="mc">
           <NumInput value={m.mc} onChange={(v) => patch({ mc: v })} step={0.01} min={0} />
         </Field>
+        <Field label="kc1 基準前角 γref" unit="°">
+          <NumInput
+            value={m.gammaRef ?? 6}
+            onChange={(v) => patch({ gammaRef: v })}
+            step={1}
+          />
+        </Field>
         <Field label="進給分力比 Ff/Fc">
           <NumInput
             value={m.ffRatio ?? DEFAULT_FF_RATIO}
@@ -124,6 +132,10 @@ function MaterialForm({
           />
         </Field>
       </div>
+      <p className="mt-2 text-xs text-slate-500">
+        γref 為 kc1 的測定基準前角，各廠商不同：Sandvik 型錄 = 6°、Iscar/Kienzle 體系的 kc1.1 =
+        0°。選用材料時 γref 會帶入工況，前角修正即以正確基準計算。
+      </p>
       <div className="mt-3 flex items-center gap-3">
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
           <input
@@ -340,6 +352,7 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
                           material: mat.name,
                           kc1: mat.kc1,
                           mc: mat.mc,
+                          gammaRef: mat.gammaRef ?? 6,
                           ffRatio: mat.ffRatio ?? DEFAULT_FF_RATIO,
                           fpRatio: mat.fpRatio ?? DEFAULT_FP_RATIO,
                         }
@@ -393,6 +406,9 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
           </Field>
           <Field label="前角 γ0" unit="°">
             <NumInput value={c.gamma0} onChange={(v) => s.updateCase(c.id, { gamma0: v })} step={1} />
+          </Field>
+          <Field label="kc1 基準 γref" unit="°">
+            <NumInput value={c.gammaRef} onChange={(v) => s.updateCase(c.id, { gammaRef: v })} step={1} />
           </Field>
         </div>
       )}
@@ -525,7 +541,7 @@ export function Phase1() {
               >
                 <span className="font-medium">{m.name}</span>
                 <span className="tabular-nums text-slate-400">
-                  kc1 {m.kc1}・mc {m.mc}
+                  kc1 {m.kc1}・mc {m.mc}・γref {m.gammaRef ?? 6}°
                 </span>
                 {!m.verified && <Badge kind="warn">須核對</Badge>}
                 <button

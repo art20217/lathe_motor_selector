@@ -121,6 +121,12 @@ export interface Material {
   isoGroup: string
   kc1: number
   mc: number
+  /**
+   * kc1 測定基準前角 [°]（選填，缺省視為 6）。
+   * Sandvik 體系 = 6；Iscar/Kienzle kc1.1 體系 = 0。
+   * 選用材料時複製到工況 γref，確保前角修正以正確基準計算。
+   */
+  gammaRef?: number
   /** 進給分力比 Ff/Fc（經驗值，選填） */
   ffRatio?: number
   /** 背分力比 Fp/Fc（經驗值，選填） */

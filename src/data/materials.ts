@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 材料比切削力參考庫
  *
  * 全部為 Sandvik CMC 分類體系常見引用之參考值（測定條件 h = 1 mm、γref = 6°），
@@ -16,6 +16,7 @@ export const BUILT_IN_MATERIALS: Material[] = [
     isoGroup: 'P',
     kc1: 1500,
     mc: 0.25,
+    gammaRef: 6,
     ffRatio: 0.4,
     fpRatio: 0.3,
     source: SRC,
@@ -27,6 +28,7 @@ export const BUILT_IN_MATERIALS: Material[] = [
     isoGroup: 'P',
     kc1: 1600,
     mc: 0.25,
+    gammaRef: 6,
     ffRatio: 0.4,
     fpRatio: 0.3,
     source: SRC,
@@ -38,6 +40,7 @@ export const BUILT_IN_MATERIALS: Material[] = [
     isoGroup: 'P',
     kc1: 1700,
     mc: 0.25,
+    gammaRef: 6,
     ffRatio: 0.4,
     fpRatio: 0.3,
     source: SRC,
@@ -49,6 +52,7 @@ export const BUILT_IN_MATERIALS: Material[] = [
     isoGroup: 'P',
     kc1: 2000,
     mc: 0.25,
+    gammaRef: 6,
     ffRatio: 0.4,
     fpRatio: 0.3,
     source: SRC,
@@ -60,6 +64,7 @@ export const BUILT_IN_MATERIALS: Material[] = [
     isoGroup: 'M',
     kc1: 2000,
     mc: 0.21,
+    gammaRef: 6,
     ffRatio: 0.45,
     fpRatio: 0.35,
     source: SRC,
@@ -71,6 +76,7 @@ export const BUILT_IN_MATERIALS: Material[] = [
     isoGroup: 'K',
     kc1: 1100,
     mc: 0.28,
+    gammaRef: 6,
     ffRatio: 0.35,
     fpRatio: 0.25,
     source: SRC,
