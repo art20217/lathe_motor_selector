@@ -12,6 +12,7 @@ import {
   CHIP_THICKNESS_MIN,
   DEFAULT_FF_RATIO,
   DEFAULT_FP_RATIO,
+  DEFAULT_GAMMA_REF,
 } from '../../engine/cutting'
 import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
 import { fmt } from '../../lib/format'
@@ -36,7 +37,7 @@ function newCase(seq: number): DutyCase {
     vc: 180,
     kappaR: 95,
     gamma0: 6,
-    gammaRef: mat.gammaRef ?? 6,
+    gammaRef: mat.gammaRef ?? DEFAULT_GAMMA_REF,
     note: '',
   }
 }
@@ -57,7 +58,7 @@ function blankMaterial(): Material {
     isoGroup: 'P',
     kc1: 1600,
     mc: 0.25,
-    gammaRef: 6,
+    gammaRef: DEFAULT_GAMMA_REF,
     ffRatio: DEFAULT_FF_RATIO,
     fpRatio: DEFAULT_FP_RATIO,
     source: '',
@@ -110,7 +111,7 @@ function MaterialForm({
         </Field>
         <Field label="kc1 基準前角 γref" unit="°">
           <NumInput
-            value={m.gammaRef ?? 6}
+            value={m.gammaRef ?? DEFAULT_GAMMA_REF}
             onChange={(v) => patch({ gammaRef: v })}
             step={1}
           />
@@ -352,7 +353,7 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
                           material: mat.name,
                           kc1: mat.kc1,
                           mc: mat.mc,
-                          gammaRef: mat.gammaRef ?? 6,
+                          gammaRef: mat.gammaRef ?? DEFAULT_GAMMA_REF,
                           ffRatio: mat.ffRatio ?? DEFAULT_FF_RATIO,
                           fpRatio: mat.fpRatio ?? DEFAULT_FP_RATIO,
                         }
@@ -541,7 +542,7 @@ export function Phase1() {
               >
                 <span className="font-medium">{m.name}</span>
                 <span className="tabular-nums text-slate-400">
-                  kc1 {m.kc1}・mc {m.mc}・γref {m.gammaRef ?? 6}°
+                  kc1 {m.kc1}・mc {m.mc}・γref {m.gammaRef ?? DEFAULT_GAMMA_REF}°
                 </span>
                 {!m.verified && <Badge kind="warn">須核對</Badge>}
                 <button
@@ -598,7 +599,7 @@ export function Phase1() {
               <span className="text-slate-500">最大主軸端扭矩需求：</span>
               <span className="font-semibold tabular-nums">{fmt(maxT, 1)} N·m</span>
             </div>
-            <Badge kind="info">γref 預設 6°（Sandvik 基準）；前角偏離 ±10° 以上時線性修正未經驗證</Badge>
+            <Badge kind="info">γref 隨材料帶入（Sandvik 體系 = 6°、Iscar kc1.1 = 0°）；前角偏離基準 ±10° 以上時線性修正未經驗證</Badge>
           </div>
         </Section>
       )}
