@@ -1,13 +1,18 @@
 /**
  * 材料比切削力參考庫
  *
- * 全部為 Sandvik CMC 分類體系常見引用之參考值（測定條件 h = 1 mm、γref = 6°），
+ * 兩套體系並列，差別在 kc1 的測定基準前角（gammaRef），選用時自動帶入工況：
+ * - Sandvik CMC 體系：h = 1 mm、γref = 6°
+ * - Iscar Kienzle 體系（kc1.1）：hm = 1 mm、γref = 0°，帶硬度分級（HB）
+ *
  * verified = false：正式選型前務必核對現行刀具廠商手冊（不同廠商參考條件可能不同）。
  * UI 建立工況時將 kc1/mc 複製為工況列數值，可直接覆寫。
  */
 import type { Material } from '../engine/types'
 
 const SRC = 'Sandvik 比切削力參考表常見引用值（h=1mm、γref=6°）— 使用前須核對現行刀具廠商手冊'
+const SRC_ISCAR =
+  'Iscar Machining Power 計算器（2026-07 提取，kc1.1 原值、γref=0°）— 使用前須核對現行 Iscar 手冊'
 
 export const BUILT_IN_MATERIALS: Material[] = [
   {
@@ -80,6 +85,79 @@ export const BUILT_IN_MATERIALS: Material[] = [
     ffRatio: 0.35,
     fpRatio: 0.25,
     source: SRC,
+    verified: false,
+  },
+  // ——— Iscar 體系（kc1 = kc1.1 原值、γref = 0°）；分力比沿用同 ISO 群經驗值 ———
+  {
+    id: 'mat-iscar-1',
+    name: '非合金鋼 <0.25%C 退火 HB125（Iscar ID1，S15C 級）',
+    isoGroup: 'P',
+    kc1: 1350,
+    mc: 0.21,
+    gammaRef: 0,
+    ffRatio: 0.4,
+    fpRatio: 0.3,
+    source: SRC_ISCAR,
+    verified: false,
+  },
+  {
+    id: 'mat-iscar-2',
+    name: '非合金鋼 ≥0.25%C 退火 HB190（Iscar ID2，S45C 級）',
+    isoGroup: 'P',
+    kc1: 1525,
+    mc: 0.22,
+    gammaRef: 0,
+    ffRatio: 0.4,
+    fpRatio: 0.3,
+    source: SRC_ISCAR,
+    verified: false,
+  },
+  {
+    id: 'mat-iscar-6',
+    name: '低合金鋼 退火 HB200（Iscar ID6，SCM440 退火級）',
+    isoGroup: 'P',
+    kc1: 1775,
+    mc: 0.24,
+    gammaRef: 0,
+    ffRatio: 0.4,
+    fpRatio: 0.3,
+    source: SRC_ISCAR,
+    verified: false,
+  },
+  {
+    id: 'mat-iscar-7',
+    name: '低合金鋼 調質 HB275（Iscar ID7，SCM440 調質級）',
+    isoGroup: 'P',
+    kc1: 1775,
+    mc: 0.24,
+    gammaRef: 0,
+    ffRatio: 0.4,
+    fpRatio: 0.3,
+    source: SRC_ISCAR,
+    verified: false,
+  },
+  {
+    id: 'mat-iscar-14',
+    name: '沃斯田鐵不鏽鋼 HB180（Iscar ID14，SUS304 級）',
+    isoGroup: 'M',
+    kc1: 2150,
+    mc: 0.2,
+    gammaRef: 0,
+    ffRatio: 0.45,
+    fpRatio: 0.35,
+    source: SRC_ISCAR,
+    verified: false,
+  },
+  {
+    id: 'mat-iscar-15',
+    name: '灰鑄鐵 波來/肥粒鐵 HB180（Iscar ID15，FC250 級）',
+    isoGroup: 'K',
+    kc1: 1150,
+    mc: 0.2,
+    gammaRef: 0,
+    ffRatio: 0.35,
+    fpRatio: 0.25,
+    source: SRC_ISCAR,
     verified: false,
   },
 ]
