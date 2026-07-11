@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Copy, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Copy, Download, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { BUILT_IN_MATERIALS } from '../../data/materials'
 import {
   OPERATION_LABELS,
@@ -16,6 +16,7 @@ import {
 } from '../../engine/cutting'
 import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
 import { fmt } from '../../lib/format'
+import { parseMaterialLibrary } from '../../lib/materialImport'
 import { useProjectStore } from '../../store/projectStore'
 import { getEffectiveDutyResults, getMaxPc, getSpindleLossAt } from '../../store/selectors'
 import { Badge, Field, NumInput, Section } from '../ui'
@@ -457,7 +458,35 @@ export function Phase1() {
   const [flashId, setFlashId] = useState<string | null>(null)
   const [addingMat, setAddingMat] = useState(false)
   const [editingMatId, setEditingMatId] = useState<string | null>(null)
+  const [importMsg, setImportMsg] = useState<{ text: string; errors: string[] } | null>(null)
+  const importFileRef = useRef<HTMLInputElement>(null)
   const editingMat = s.customMaterials.find((m) => m.id === editingMatId)
+
+  const handleImportFile = async (file: File) => {
+    const { materials, errors } = parseMaterialLibrary(await file.text())
+    if (materials.length === 0) {
+      setImportMsg({ text: '匯入失敗：檔案內無有效材料', errors })
+      return
+    }
+    const { added, updated } = s.importMaterials(materials)
+    setImportMsg({
+      text: `匯入完成：新增 ${added} 筆、更新 ${updated} 筆${errors.length ? `，略過 ${errors.length} 筆` : ''}`,
+      errors,
+    })
+  }
+
+  const handleExportMaterials = () => {
+    const blob = new Blob(
+      [JSON.stringify({ formatVersion: 1, materials: s.customMaterials }, null, 2)],
+      { type: 'application/json' },
+    )
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '材料庫.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleAdd = () => {
     const c = newCase(s.cases.length + 1)
@@ -487,6 +516,35 @@ export function Phase1() {
         title="Step 1.1–1.3 設計工況矩陣"
         aside={
           <div className="flex gap-2">
+            <input
+              ref={importFileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (f) void handleImportFile(f)
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => importFileRef.current?.click()}
+              title="自 JSON 檔匯入材料庫（同名更新、新名附加）"
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <Upload size={15} /> 匯入材料庫
+            </button>
+            {s.customMaterials.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportMaterials}
+                title="將自訂材料匯出為 JSON 檔"
+                className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                <Download size={15} /> 匯出材料
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -513,6 +571,30 @@ export function Phase1() {
           Sandvik CoroPlus ToolGuide）計算後，用「直接輸入 (n, T)」型態填入結果。新增的工況會帶入
           S45C 與常用切削條件作為起始值，全部欄位皆可修改。
         </p>
+        {importMsg && (
+          <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span>{importMsg.text}</span>
+              <button
+                type="button"
+                onClick={() => setImportMsg(null)}
+                className="ml-auto p-0.5 text-slate-400 hover:text-slate-600"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {importMsg.errors.length > 0 && (
+              <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
+                {importMsg.errors.slice(0, 5).map((e) => (
+                  <li key={e}>⚠ {e}</li>
+                ))}
+                {importMsg.errors.length > 5 && (
+                  <li>…另有 {importMsg.errors.length - 5} 筆錯誤</li>
+                )}
+              </ul>
+            )}
+          </div>
+        )}
         {addingMat && (
           <div className="mb-3">
             <MaterialForm

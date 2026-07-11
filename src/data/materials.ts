@@ -12,7 +12,7 @@ import type { Material } from '../engine/types'
 
 const SRC = 'Sandvik 比切削力參考表常見引用值（h=1mm、γref=6°）— 使用前須核對現行刀具廠商手冊'
 const SRC_ISCAR =
-  'Iscar Machining Power 計算器（2026-07 提取，kc1.1 原值、γref=0°）— 使用前須核對現行 Iscar 手冊'
+  'Iscar Kienzle 體系參考值（kc1.1、hm=1mm、γref=0°）— 使用前須核對現行 Iscar 手冊'
 
 export const BUILT_IN_MATERIALS: Material[] = [
   {
