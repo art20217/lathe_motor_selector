@@ -119,6 +119,8 @@ export interface ProjectActions {
   addMaterial: (m: Material) => void
   updateMaterial: (id: string, patch: Partial<Material>) => void
   removeMaterial: (id: string) => void
+  /** 批次匯入自訂材料：同名更新（保留原 id）、新名附加；回傳筆數統計 */
+  importMaterials: (ms: Material[]) => { added: number; updated: number }
   setDeflection: (patch: Partial<DeflectionConfig>) => void
   setLossConfig: (patch: Partial<Omit<LossConfig, 'bearings'>>) => void
   setLossBearing: (index: number, patch: Partial<BearingSpec>) => void
@@ -229,6 +231,25 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         })),
       removeMaterial: (id) =>
         set((s) => ({ customMaterials: s.customMaterials.filter((m) => m.id !== id) })),
+      importMaterials: (ms) => {
+        let added = 0
+        let updated = 0
+        set((s) => {
+          const byName = new Map(s.customMaterials.map((m) => [m.name, m]))
+          for (const m of ms) {
+            const existing = byName.get(m.name)
+            if (existing) {
+              byName.set(m.name, { ...existing, ...m, id: existing.id })
+              updated++
+            } else {
+              byName.set(m.name, m)
+              added++
+            }
+          }
+          return { customMaterials: [...byName.values()] }
+        })
+        return { added, updated }
+      },
       setDeflection: (patch) => set((s) => ({ deflection: { ...s.deflection, ...patch } })),
       setLossConfig: (patch) => set((s) => ({ lossConfig: { ...s.lossConfig, ...patch } })),
       setLossBearing: (index, patch) =>
