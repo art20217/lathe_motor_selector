@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, Download, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, Download, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { BUILT_IN_MATERIALS } from '../../data/materials'
 import {
   OPERATION_LABELS,
@@ -459,6 +459,7 @@ export function Phase1() {
   const [addingMat, setAddingMat] = useState(false)
   const [editingMatId, setEditingMatId] = useState<string | null>(null)
   const [importMsg, setImportMsg] = useState<{ text: string; errors: string[] } | null>(null)
+  const [matListOpen, setMatListOpen] = useState(false)
   const importFileRef = useRef<HTMLInputElement>(null)
   const editingMat = s.customMaterials.find((m) => m.id === editingMatId)
 
@@ -615,39 +616,60 @@ export function Phase1() {
           </div>
         )}
         {s.customMaterials.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-medium text-slate-500">自訂材料</span>
-            {s.customMaterials.map((m) => (
-              <span
-                key={m.id}
-                className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2 py-1"
-              >
-                <span className="font-medium">{m.name}</span>
-                <span className="tabular-nums text-slate-400">
-                  kc1 {m.kc1}・mc {m.mc}・γref {m.gammaRef ?? DEFAULT_GAMMA_REF}°
+          <div className="mb-3 text-xs">
+            <button
+              type="button"
+              onClick={() => setMatListOpen((v) => !v)}
+              className="flex items-center gap-1 font-medium text-slate-500 hover:text-slate-700"
+            >
+              {matListOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              自訂材料（{s.customMaterials.length} 筆）
+              {!matListOpen && (
+                <span className="ml-1 font-normal text-slate-400">
+                  — 點擊展開管理；選用請至工況卡片的材料下拉選單
                 </span>
-                {!m.verified && <Badge kind="warn">須核對</Badge>}
-                <button
-                  type="button"
-                  title="編輯"
-                  onClick={() => {
-                    setEditingMatId(m.id)
-                    setAddingMat(false)
-                  }}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  <Pencil size={12} />
-                </button>
-                <button
-                  type="button"
-                  title="刪除"
-                  onClick={() => s.removeMaterial(m.id)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </span>
-            ))}
+              )}
+            </button>
+            {matListOpen && (
+              <div className="mt-2 max-h-64 overflow-y-auto rounded border border-slate-200">
+                <table className="w-full text-xs">
+                  <tbody>
+                    {s.customMaterials.map((m) => (
+                      <tr key={m.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                        <td className="px-2 py-1 font-medium">{m.name}</td>
+                        <td className="whitespace-nowrap px-2 py-1 tabular-nums text-slate-400">
+                          kc1 {m.kc1}・mc {m.mc}・γref {m.gammaRef ?? DEFAULT_GAMMA_REF}°
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1">
+                          {!m.verified && <Badge kind="warn">須核對</Badge>}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1 text-right">
+                          <button
+                            type="button"
+                            title="編輯"
+                            onClick={() => {
+                              setEditingMatId(m.id)
+                              setAddingMat(false)
+                            }}
+                            className="mr-2 text-blue-600 hover:text-blue-800"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            title="刪除"
+                            onClick={() => s.removeMaterial(m.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
         {s.cases.length === 0 ? (
