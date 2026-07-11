@@ -15,6 +15,9 @@ export const CHIP_THICKNESS_MIN = 0.01
 export const DEFAULT_FF_RATIO = 0.4
 export const DEFAULT_FP_RATIO = 0.3
 
+/** kc1 測量基準前角缺省值 [°]（Sandvik 標準；Iscar/Kienzle 體系材料填 0） */
+export const DEFAULT_GAMMA_REF = 6
+
 /** 切屑厚度 h = fn·sin(κr) [mm]，下限鉗制於 CHIP_THICKNESS_MIN */
 export function chipThickness(fn: number, kappaRDeg: number): number {
   return Math.max(fn * Math.sin(kappaRDeg * DEG), CHIP_THICKNESS_MIN)
