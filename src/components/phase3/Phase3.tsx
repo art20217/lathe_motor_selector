@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Download, Upload, X } from 'lucide-react'
 import { constPowerGaps, gearConstPowerBand, verifyCoverage } from '../../engine/tnCurve'
 import { fmt } from '../../lib/format'
+import { parseGearFile } from '../../lib/gearImport'
 import { useProjectStore } from '../../store/projectStore'
 import { getDutyPoints, getEffectiveDutyResults, getSelectedMotor } from '../../store/selectors'
 import { Badge, Field, NumInput, Section } from '../ui'
@@ -50,6 +52,30 @@ export function Phase3() {
   const motor = getSelectedMotor(s)
   const results = getEffectiveDutyResults(s)
   const points = getDutyPoints(s.cases, results)
+  const [importMsg, setImportMsg] = useState<{ text: string; errors: string[] } | null>(null)
+  const importFileRef = useRef<HTMLInputElement>(null)
+
+  const handleImportFile = async (file: File) => {
+    const { gears, errors } = parseGearFile(await file.text())
+    if (gears.length === 0) {
+      setImportMsg({ text: '匯入失敗', errors })
+      return
+    }
+    s.setGears(gears)
+    setImportMsg({ text: '匯入完成：四檔齒比與效率已更新', errors: [] })
+  }
+
+  const handleExportGears = () => {
+    const blob = new Blob([JSON.stringify({ formatVersion: 1, gears: s.gears }, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '齒比.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   if (!motor) {
     return (
@@ -66,7 +92,61 @@ export function Phase3() {
 
   return (
     <div className="space-y-4">
-      <Section title={`Step 3.2–3.3 齒比設定 — 馬達：${motor.brand} ${motor.model}`}>
+      <Section
+        title={`Step 3.2–3.3 齒比設定 — 馬達：${motor.brand} ${motor.model}`}
+        aside={
+          <div className="flex gap-2">
+            <input
+              ref={importFileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (f) void handleImportFile(f)
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => importFileRef.current?.click()}
+              title="自 JSON 檔匯入四檔齒比與效率"
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <Upload size={15} /> 匯入齒比
+            </button>
+            <button
+              type="button"
+              onClick={handleExportGears}
+              title="將目前四檔齒比與效率匯出為 JSON 檔"
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <Download size={15} /> 匯出齒比
+            </button>
+          </div>
+        }
+      >
+        {importMsg && (
+          <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span>{importMsg.text}</span>
+              <button
+                type="button"
+                onClick={() => setImportMsg(null)}
+                className="ml-auto p-0.5 text-slate-400 hover:text-slate-600"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {importMsg.errors.length > 0 && (
+              <ul className="mt-1 space-y-0.5 text-xs text-amber-700">
+                {importMsg.errors.map((e) => (
+                  <li key={e}>⚠ {e}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <p className="mb-3 text-xs leading-relaxed text-slate-500">
           齒比定義 i_k = n_sp / n_motor（減速傳動 &lt; 1）。SOP
           尚未包含帶域分割方法論，帶域劃分由設計者判斷；輸入理論目標值或齒輪箱實現後的實際齒比（Step 3.5
