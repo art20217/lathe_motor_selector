@@ -8,6 +8,7 @@ import {
   Legend,
   Line,
   ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   Tooltip,
@@ -68,8 +69,8 @@ export function TnChart({
           轉速對數座標
         </label>
       </div>
-      <ResponsiveContainer width="100%" height={420}>
-        <ComposedChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+      <ResponsiveContainer width="100%" height={460}>
+        <ComposedChart margin={{ top: 10, right: 20, bottom: 24, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey="n"
@@ -78,7 +79,7 @@ export function TnChart({
             domain={logX ? [minN, maxN * 1.05] : [0, maxN * 1.05]}
             allowDataOverflow
             tickFormatter={(v: number) => fmt(v, 0)}
-            label={{ value: '主軸轉速 n_sp [rpm]', position: 'insideBottom', offset: -5, fontSize: 12 }}
+            label={{ value: '主軸轉速 n_sp [rpm]', position: 'insideBottom', offset: -18, fontSize: 12 }}
             fontSize={11}
           />
           <YAxis
@@ -92,7 +93,44 @@ export function TnChart({
             formatter={(value) => [`${fmt(Number(value), 1)} N·m`, '']}
             labelFormatter={(v) => `n_sp = ${fmt(Number(v), 1)} rpm`}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 26 }} />
+          {/* 各檔終點：垂直虛線 + 橫軸轉速值；最大扭矩值標於縱軸位置 */}
+          {curves.map((_, k) => {
+            const nEnd = motor.nMax * gears[k].ratio
+            return (
+              <ReferenceLine
+                key={`end-${GEAR_COLORS[k]}`}
+                x={logX ? Math.max(nEnd, minN) : nEnd}
+                stroke={GEAR_COLORS[k]}
+                strokeDasharray="4 3"
+                strokeOpacity={0.55}
+                label={{
+                  value: fmt(nEnd, 0),
+                  position: 'insideBottom',
+                  fill: GEAR_COLORS[k],
+                  fontSize: 10,
+                  dy: 12,
+                }}
+              />
+            )
+          })}
+          {curves.map((data, k) => {
+            const tMax = data.length ? Math.max(...data.map((p) => p.T)) : 0
+            return (
+              <ReferenceLine
+                key={`tmax-${GEAR_COLORS[k]}`}
+                y={tMax}
+                stroke="none"
+                label={{
+                  value: fmt(tMax, 0),
+                  position: 'insideLeft',
+                  fill: GEAR_COLORS[k],
+                  fontSize: 10,
+                  dy: -6,
+                }}
+              />
+            )
+          })}
           {gaps.map((gap) => (
             <ReferenceArea
               key={`${gap.from}-${gap.to}`}

@@ -133,6 +133,8 @@ export interface ProjectActions {
   hideBuiltInMotor: (id: string) => void
   selectMotor: (id: string | null) => void
   setGear: (index: number, patch: Partial<Gear>) => void
+  /** 整組覆蓋四檔齒比（匯入用） */
+  setGears: (gears: Gear[]) => void
   setDynamics: (patch: Partial<DynamicsInput>) => void
   setCheckItem: (list: 'driver' | 'thermal', id: string, patch: Partial<CheckItem>) => void
   importProject: (data: ProjectState) => void
@@ -281,6 +283,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       selectMotor: (selectedMotorId) => set({ selectedMotorId }),
       setGear: (index, patch) =>
         set((s) => ({ gears: s.gears.map((g, k) => (k === index ? { ...g, ...patch } : g)) })),
+      setGears: (gears) => set({ gears }),
       setDynamics: (patch) => set((s) => ({ dynamics: { ...s.dynamics, ...patch } })),
       setCheckItem: (list, id, patch) =>
         set((s) => {
