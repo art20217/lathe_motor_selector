@@ -44,6 +44,8 @@ export interface DutyCase {
   ffRatio?: number
   /** 背分力比 Fp/Fc（經驗值）；舊資料缺省時以 0.30 計 */
   fpRatio?: number
+  /** 刃口磨耗量 VB [mm]（放大 Fc/Ff/Fp 估算磨耗餘裕）；0 = 全新刃口；舊資料缺省時以 0 計 */
+  vb?: number
   /** operation = 'direct'（如螺紋，由廠商工具計算）時直接給定主軸端座標 */
   directNSp?: number
   /** [N·m] */
@@ -72,6 +74,8 @@ export interface DutyResult {
   TSp: number
   /** 交叉驗證：T_sp = Fc·D/2·10⁻³ 獨立計算值；direct 模式為 null */
   TSpCross: number | null
+  /** 是否已套用刃口磨耗修正（vb > 0）；供 UI 顯示提示 */
+  wearApplied: boolean
 }
 
 /** 主軸端需求點（Phase 3 覆蓋驗證的輸入） */

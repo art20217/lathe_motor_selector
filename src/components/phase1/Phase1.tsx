@@ -14,6 +14,7 @@ import {
   DEFAULT_FP_RATIO,
   DEFAULT_GAMMA_REF,
 } from '../../engine/cutting'
+import { VB_DEFAULT, VB_TABLE_MAX, wearMultipliers } from '../../engine/toolWear'
 import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
 import { fmt } from '../../lib/format'
 import { parseMaterialLibrary } from '../../lib/materialImport'
@@ -39,6 +40,7 @@ function newCase(seq: number): DutyCase {
     kappaR: 95,
     gamma0: 6,
     gammaRef: mat.gammaRef ?? DEFAULT_GAMMA_REF,
+    vb: VB_DEFAULT,
     note: '',
   }
 }
@@ -412,6 +414,28 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
           <Field label="kc1 基準 γref" unit="°">
             <NumInput value={c.gammaRef} onChange={(v) => s.updateCase(c.id, { gammaRef: v })} step={1} />
           </Field>
+          <Field label="刃口磨耗 VB" unit="mm">
+            <span
+              className="block"
+              title={
+                'VB 磨耗量對分力放大倍率參考（近似值，依材料/刀具而異）：\n' +
+                '0.0mm → ×1.00 / 1.00 / 1.00（全新刃口）\n' +
+                '0.1mm → ×1.08 / 1.15 / 1.20\n' +
+                '0.2mm → ×1.18 / 1.35 / 1.45\n' +
+                '0.3mm → ×1.30 / 1.60 / 1.75（ISO 3685 標準刀具壽命判定基準）\n' +
+                '0.4mm → ×1.45 / 1.90 / 2.10\n' +
+                '0.5mm → ×1.60 / 2.20 / 2.50\n' +
+                '（依序為 Fc / Ff / Fp 倍率；VB=0.3mm 為預設保守磨耗餘裕）'
+              }
+            >
+              <NumInput
+                value={c.vb ?? 0}
+                onChange={(v) => s.updateCase(c.id, { vb: v })}
+                step={0.05}
+                min={0}
+              />
+            </span>
+          </Field>
         </div>
       )}
 
@@ -429,6 +453,16 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
             <span className="text-slate-600">Fc = {fmt(r.Fc, 0)} N</span>
             <span className="text-slate-500">Ff = {fmt(r.Ff, 0)} N</span>
             <span className="text-slate-500">Fp = {fmt(r.Fp, 0)} N</span>
+            {r.wearApplied && (
+              <span className="text-amber-700">
+                含磨耗修正 VB={fmt(c.vb ?? 0, 2)}mm → ×
+                {fmt(wearMultipliers(c.vb ?? 0).fc, 2)}/{fmt(wearMultipliers(c.vb ?? 0).ff, 2)}/
+                {fmt(wearMultipliers(c.vb ?? 0).fp, 2)}
+                {(c.vb ?? 0) > VB_TABLE_MAX && (
+                  <span className="ml-1"><Badge kind="warn">已超出參考表範圍，倍率以上限外插</Badge></span>
+                )}
+              </span>
+            )}
           </>
         )}
         {loss && (

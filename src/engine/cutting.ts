@@ -4,6 +4,7 @@
  * 公式依據 SOP Step 1.2 / 1.3（kc 修正式為 Sandvik 線性近似，
  * 前角偏離參考值 ±10° 以內適用）。
  */
+import { wearMultipliers } from './toolWear'
 import { TORQUE_CONST, type DutyCase, type DutyResult } from './types'
 
 const DEG = Math.PI / 180
@@ -79,11 +80,18 @@ export function computeDuty(c: DutyCase): DutyResult {
       nSp,
       TSp,
       TSpCross: null,
+      wearApplied: false,
     }
   }
   const h = chipThickness(c.fn, c.kappaR)
   const kc = specificCuttingForce(c.kc1, c.mc, h, c.gamma0, c.gammaRef)
-  const Fc = cuttingForce(kc, c.ap, c.fn)
+  const FcSharp = cuttingForce(kc, c.ap, c.fn)
+  const FfSharp = (c.ffRatio ?? DEFAULT_FF_RATIO) * FcSharp
+  const FpSharp = (c.fpRatio ?? DEFAULT_FP_RATIO) * FcSharp
+  const wear = wearMultipliers(c.vb ?? 0)
+  const Fc = FcSharp * wear.fc
+  const Ff = FfSharp * wear.ff
+  const Fp = FpSharp * wear.fp
   const Pc = cuttingPower(Fc, c.vc)
   const nSp = spindleSpeed(c.vc, c.D)
   return {
@@ -91,11 +99,12 @@ export function computeDuty(c: DutyCase): DutyResult {
     h,
     kc,
     Fc,
-    Ff: (c.ffRatio ?? DEFAULT_FF_RATIO) * Fc,
-    Fp: (c.fpRatio ?? DEFAULT_FP_RATIO) * Fc,
+    Ff,
+    Fp,
     Pc,
     nSp,
     TSp: spindleTorque(Pc, nSp),
     TSpCross: spindleTorqueFromForce(Fc, c.D),
+    wearApplied: (c.vb ?? 0) > 0,
   }
 }

@@ -100,6 +100,23 @@ describe('Phase 1 切削計算', () => {
     expect(r.Fp).toBeNull()
   })
 
+  it('vb 未設定或為 0：wearApplied=false，分力不放大', () => {
+    const r = computeDuty(baseCase)
+    expect(r.wearApplied).toBe(false)
+    const rZero = computeDuty({ ...baseCase, vb: 0 })
+    expect(rZero.Fc).toBeCloseTo(r.Fc!, 6)
+  })
+
+  it('vb=0.3mm：Fc/Ff/Fp 依磨耗倍率放大，Pc 隨 Fc 同步提高', () => {
+    const rSharp = computeDuty(baseCase)
+    const rWorn = computeDuty({ ...baseCase, vb: 0.3 })
+    expect(rWorn.wearApplied).toBe(true)
+    expect(rWorn.Fc).toBeCloseTo(rSharp.Fc! * 1.3, 2)
+    expect(rWorn.Ff).toBeCloseTo(rSharp.Ff! * 1.6, 2)
+    expect(rWorn.Fp).toBeCloseTo(rSharp.Fp! * 1.75, 2)
+    expect(rWorn.Pc).toBeCloseTo(rSharp.Pc * 1.3, 4)
+  })
+
   it('個別公式單位一致性', () => {
     expect(cuttingForce(2000, 8, 0.5)).toBe(8000)
     expect(cuttingPower(8000, 180)).toBeCloseTo(24, 10)

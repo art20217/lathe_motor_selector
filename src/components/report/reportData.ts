@@ -120,6 +120,8 @@ export function buildReportData(s: ProjectState): ReportData {
     assumptions.push(`選定馬達「${motor.brand} ${motor.model}」規格未核對型錄，正式選型前須以 FANUC B-65272EN 確認`)
   assumptions.push('材料 kc1/mc 若採內建參考值，正式選型前須核對現行刀具廠商手冊（參考條件 h=1mm、γref=6°）')
   assumptions.push('扭矩常數 9550 = 60000/(2π) 的工程慣用值（精確值 9549.30）')
+  if (results.some((r) => r.wearApplied))
+    assumptions.push('部分工況已套用刃口磨耗（VB）分力放大修正，倍率為近似參考範圍，非單一權威公式')
 
   return {
     state: s,
