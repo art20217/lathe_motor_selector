@@ -19,9 +19,21 @@ export const DEFAULT_FP_RATIO = 0.3
 /** kc1 測量基準前角缺省值 [°]（Sandvik 標準；Iscar/Kienzle 體系材料填 0） */
 export const DEFAULT_GAMMA_REF = 6
 
-/** 切屑厚度 h = fn·sin(κr) [mm]，下限鉗制於 CHIP_THICKNESS_MIN */
+/** 直刃刀片圓形刀片預設直徑缺省值 [mm]（常見圓刀片尺寸） */
+export const DEFAULT_INSERT_DIA = 25
+
+/** 切屑厚度 h = fn·sin(κr) [mm]（直刃刀片），下限鉗制於 CHIP_THICKNESS_MIN */
 export function chipThickness(fn: number, kappaRDeg: number): number {
   return Math.max(fn * Math.sin(kappaRDeg * DEG), CHIP_THICKNESS_MIN)
+}
+
+/**
+ * 平均切屑厚度 hm ≈ fn·√(ap/d) [mm]（圓形刀片近似式），下限鉗制於 CHIP_THICKNESS_MIN。
+ * 圓刃無固定主偏角，嚙合弧長隨 ap 增加而變長，同一進給量被攤分到更長刃口，
+ * 平均厚度隨 √(ap/d) 變化。近似式適用條件約 ap ≲ d/2，超出時準確度未經驗證。
+ */
+export function chipThicknessRound(fn: number, ap: number, d: number): number {
+  return Math.max(fn * Math.sqrt(ap / d), CHIP_THICKNESS_MIN)
 }
 
 /** 修正後比切削力 kc = kc1·h⁻ᵐᶜ·(1 − (γ0 − γref)/100) [N/mm²] */
@@ -83,7 +95,10 @@ export function computeDuty(c: DutyCase): DutyResult {
       wearApplied: false,
     }
   }
-  const h = chipThickness(c.fn, c.kappaR)
+  const h =
+    c.insertShape === 'round'
+      ? chipThicknessRound(c.fn, c.ap, c.insertDia ?? DEFAULT_INSERT_DIA)
+      : chipThickness(c.fn, c.kappaR)
   const kc = specificCuttingForce(c.kc1, c.mc, h, c.gamma0, c.gammaRef)
   const FcSharp = cuttingForce(kc, c.ap, c.fn)
   const FfSharp = (c.ffRatio ?? DEFAULT_FF_RATIO) * FcSharp

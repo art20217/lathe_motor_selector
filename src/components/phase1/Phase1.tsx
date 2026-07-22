@@ -13,6 +13,7 @@ import {
   DEFAULT_FF_RATIO,
   DEFAULT_FP_RATIO,
   DEFAULT_GAMMA_REF,
+  DEFAULT_INSERT_DIA,
 } from '../../engine/cutting'
 import { VB_DEFAULT, VB_TABLE_MAX, wearMultipliers } from '../../engine/toolWear'
 import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
@@ -37,6 +38,7 @@ function newCase(seq: number): DutyCase {
     ap: 5,
     fn: 0.4,
     vc: 180,
+    insertShape: 'straight',
     kappaR: 95,
     gamma0: 6,
     gammaRef: mat.gammaRef ?? DEFAULT_GAMMA_REF,
@@ -405,9 +407,38 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
           <Field label="切削速度 vc" unit="m/min">
             <NumInput value={c.vc} onChange={(v) => s.updateCase(c.id, { vc: v })} step={10} min={1} />
           </Field>
-          <Field label="主偏角 κr" unit="°">
-            <NumInput value={c.kappaR} onChange={(v) => s.updateCase(c.id, { kappaR: v })} step={1} min={1} max={180} />
+          <Field label="刀片形狀">
+            <select
+              value={c.insertShape ?? 'straight'}
+              onChange={(e) => {
+                const shape = e.target.value as 'straight' | 'round'
+                s.updateCase(
+                  c.id,
+                  shape === 'round'
+                    ? { insertShape: shape, insertDia: c.insertDia ?? DEFAULT_INSERT_DIA }
+                    : { insertShape: shape },
+                )
+              }}
+              className="w-full rounded border border-slate-300 px-1 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            >
+              <option value="straight">直刃（主偏角 κr）</option>
+              <option value="round">圓形（直徑 d）</option>
+            </select>
           </Field>
+          {(c.insertShape ?? 'straight') === 'round' ? (
+            <Field label="刀片直徑 d" unit="mm">
+              <NumInput
+                value={c.insertDia ?? DEFAULT_INSERT_DIA}
+                onChange={(v) => s.updateCase(c.id, { insertDia: v })}
+                step={1}
+                min={1}
+              />
+            </Field>
+          ) : (
+            <Field label="主偏角 κr" unit="°">
+              <NumInput value={c.kappaR} onChange={(v) => s.updateCase(c.id, { kappaR: v })} step={1} min={1} max={180} />
+            </Field>
+          )}
           <Field label="前角 γ0" unit="°">
             <NumInput value={c.gamma0} onChange={(v) => s.updateCase(c.id, { gamma0: v })} step={1} />
           </Field>
@@ -445,7 +476,9 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
           <>
             <span className="text-slate-600">
               h = {fmt(r.h, 3)} mm
-              {c.fn * Math.sin((c.kappaR * Math.PI) / 180) < CHIP_THICKNESS_MIN && (
+              {((c.insertShape ?? 'straight') === 'round'
+                ? c.fn * Math.sqrt(c.ap / (c.insertDia ?? DEFAULT_INSERT_DIA))
+                : c.fn * Math.sin((c.kappaR * Math.PI) / 180)) < CHIP_THICKNESS_MIN && (
                 <span className="ml-1"><Badge kind="warn">已鉗制下限 {CHIP_THICKNESS_MIN} mm</Badge></span>
               )}
             </span>

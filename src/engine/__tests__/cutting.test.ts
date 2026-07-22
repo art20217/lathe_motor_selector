@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CHIP_THICKNESS_MIN,
   chipThickness,
+  chipThicknessRound,
   computeDuty,
   cuttingForce,
   cuttingPower,
@@ -115,6 +116,23 @@ describe('Phase 1 切削計算', () => {
     expect(rWorn.Ff).toBeCloseTo(rSharp.Ff! * 1.6, 2)
     expect(rWorn.Fp).toBeCloseTo(rSharp.Fp! * 1.75, 2)
     expect(rWorn.Pc).toBeCloseTo(rSharp.Pc * 1.3, 4)
+  })
+
+  it('圓形刀片平均切屑厚度 hm ≈ fn·√(ap/d)', () => {
+    expect(chipThicknessRound(0.4, 4, 25)).toBeCloseTo(0.4 * Math.sqrt(4 / 25), 10)
+    expect(chipThicknessRound(0.001, 4, 25)).toBe(CHIP_THICKNESS_MIN)
+  })
+
+  it('insertShape=round：computeDuty 改用 hm≈fn·√(ap/d)，忽略 kappaR', () => {
+    const r = computeDuty({ ...baseCase, insertShape: 'round', insertDia: 25, kappaR: 1 })
+    const hExpected = 0.5 * Math.sqrt(8 / 25)
+    expect(r.h).toBeCloseTo(hExpected, 6)
+  })
+
+  it('insertShape 未設定或為 straight：行為與既有直刃公式一致', () => {
+    const r1 = computeDuty(baseCase)
+    const r2 = computeDuty({ ...baseCase, insertShape: 'straight' })
+    expect(r2.h).toBeCloseTo(r1.h!, 10)
   })
 
   it('個別公式單位一致性', () => {

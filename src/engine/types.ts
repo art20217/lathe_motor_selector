@@ -15,6 +15,9 @@ export const OPERATION_LABELS: Record<OperationType, string> = {
   direct: '直接輸入 (n, T)',
 }
 
+/** 刀片形狀（決定切屑厚度 h 的計算方式）；缺省視為 'straight'（向下相容既有工況資料） */
+export type InsertShape = 'straight' | 'round'
+
 /** 設計工況（工況矩陣的一列） */
 export interface DutyCase {
   id: string
@@ -34,7 +37,11 @@ export interface DutyCase {
   fn: number
   /** 切削速度 [m/min] */
   vc: number
-  /** 主偏角 [°] */
+  /** 刀片形狀；缺省 'straight'，'round' 時改用 insertDia 計算 h，忽略 kappaR */
+  insertShape?: InsertShape
+  /** 圓形刀片直徑 [mm]（insertShape='round' 時使用；近似式 hm≈fn·√(ap/d) 適用約 ap≲d/2） */
+  insertDia?: number
+  /** 主偏角 [°]（僅 insertShape≠'round' 時用於 h 計算） */
   kappaR: number
   /** 實際前角 [°] */
   gamma0: number
