@@ -13,7 +13,9 @@ import {
   DEFAULT_FF_RATIO,
   DEFAULT_FP_RATIO,
   DEFAULT_GAMMA_REF,
+  DEFAULT_INSERT_DIA,
 } from '../../engine/cutting'
+import { VB_DEFAULT, VB_TABLE_MAX, wearMultipliers } from '../../engine/toolWear'
 import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
 import { fmt } from '../../lib/format'
 import { parseMaterialLibrary } from '../../lib/materialImport'
@@ -36,9 +38,11 @@ function newCase(seq: number): DutyCase {
     ap: 5,
     fn: 0.4,
     vc: 180,
+    insertShape: 'straight',
     kappaR: 95,
     gamma0: 6,
     gammaRef: mat.gammaRef ?? DEFAULT_GAMMA_REF,
+    vb: VB_DEFAULT,
     note: '',
   }
 }
@@ -403,14 +407,65 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
           <Field label="切削速度 vc" unit="m/min">
             <NumInput value={c.vc} onChange={(v) => s.updateCase(c.id, { vc: v })} step={10} min={1} />
           </Field>
-          <Field label="主偏角 κr" unit="°">
-            <NumInput value={c.kappaR} onChange={(v) => s.updateCase(c.id, { kappaR: v })} step={1} min={1} max={180} />
+          <Field label="刀片形狀">
+            <select
+              value={c.insertShape ?? 'straight'}
+              onChange={(e) => {
+                const shape = e.target.value as 'straight' | 'round'
+                s.updateCase(
+                  c.id,
+                  shape === 'round'
+                    ? { insertShape: shape, insertDia: c.insertDia ?? DEFAULT_INSERT_DIA }
+                    : { insertShape: shape },
+                )
+              }}
+              className="w-full rounded border border-slate-300 px-1 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            >
+              <option value="straight">直刃（主偏角 κr）</option>
+              <option value="round">圓形（直徑 d）</option>
+            </select>
           </Field>
+          {(c.insertShape ?? 'straight') === 'round' ? (
+            <Field label="刀片直徑 d" unit="mm">
+              <NumInput
+                value={c.insertDia ?? DEFAULT_INSERT_DIA}
+                onChange={(v) => s.updateCase(c.id, { insertDia: v })}
+                step={1}
+                min={1}
+              />
+            </Field>
+          ) : (
+            <Field label="主偏角 κr" unit="°">
+              <NumInput value={c.kappaR} onChange={(v) => s.updateCase(c.id, { kappaR: v })} step={1} min={1} max={180} />
+            </Field>
+          )}
           <Field label="前角 γ0" unit="°">
             <NumInput value={c.gamma0} onChange={(v) => s.updateCase(c.id, { gamma0: v })} step={1} />
           </Field>
           <Field label="kc1 基準 γref" unit="°">
             <NumInput value={c.gammaRef} onChange={(v) => s.updateCase(c.id, { gammaRef: v })} step={1} />
+          </Field>
+          <Field label="刃口磨耗 VB" unit="mm">
+            <span
+              className="block"
+              title={
+                'VB 磨耗量對分力放大倍率參考（近似值，依材料/刀具而異）：\n' +
+                '0.0mm → ×1.00 / 1.00 / 1.00（全新刃口）\n' +
+                '0.1mm → ×1.08 / 1.15 / 1.20\n' +
+                '0.2mm → ×1.18 / 1.35 / 1.45\n' +
+                '0.3mm → ×1.30 / 1.60 / 1.75（ISO 3685 標準刀具壽命判定基準）\n' +
+                '0.4mm → ×1.45 / 1.90 / 2.10\n' +
+                '0.5mm → ×1.60 / 2.20 / 2.50\n' +
+                '（依序為 Fc / Ff / Fp 倍率；VB=0.3mm 為預設保守磨耗餘裕）'
+              }
+            >
+              <NumInput
+                value={c.vb ?? 0}
+                onChange={(v) => s.updateCase(c.id, { vb: v })}
+                step={0.05}
+                min={0}
+              />
+            </span>
           </Field>
         </div>
       )}
@@ -421,7 +476,9 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
           <>
             <span className="text-slate-600">
               h = {fmt(r.h, 3)} mm
-              {c.fn * Math.sin((c.kappaR * Math.PI) / 180) < CHIP_THICKNESS_MIN && (
+              {((c.insertShape ?? 'straight') === 'round'
+                ? c.fn * Math.sqrt(c.ap / (c.insertDia ?? DEFAULT_INSERT_DIA))
+                : c.fn * Math.sin((c.kappaR * Math.PI) / 180)) < CHIP_THICKNESS_MIN && (
                 <span className="ml-1"><Badge kind="warn">已鉗制下限 {CHIP_THICKNESS_MIN} mm</Badge></span>
               )}
             </span>
@@ -429,6 +486,16 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
             <span className="text-slate-600">Fc = {fmt(r.Fc, 0)} N</span>
             <span className="text-slate-500">Ff = {fmt(r.Ff, 0)} N</span>
             <span className="text-slate-500">Fp = {fmt(r.Fp, 0)} N</span>
+            {r.wearApplied && (
+              <span className="text-amber-700">
+                含磨耗修正 VB={fmt(c.vb ?? 0, 2)}mm → ×
+                {fmt(wearMultipliers(c.vb ?? 0).fc, 2)}/{fmt(wearMultipliers(c.vb ?? 0).ff, 2)}/
+                {fmt(wearMultipliers(c.vb ?? 0).fp, 2)}
+                {(c.vb ?? 0) > VB_TABLE_MAX && (
+                  <span className="ml-1"><Badge kind="warn">已超出參考表範圍，倍率以上限外插</Badge></span>
+                )}
+              </span>
+            )}
           </>
         )}
         {loss && (

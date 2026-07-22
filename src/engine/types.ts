@@ -15,6 +15,9 @@ export const OPERATION_LABELS: Record<OperationType, string> = {
   direct: '直接輸入 (n, T)',
 }
 
+/** 刀片形狀（決定切屑厚度 h 的計算方式）；缺省視為 'straight'（向下相容既有工況資料） */
+export type InsertShape = 'straight' | 'round'
+
 /** 設計工況（工況矩陣的一列） */
 export interface DutyCase {
   id: string
@@ -34,7 +37,11 @@ export interface DutyCase {
   fn: number
   /** 切削速度 [m/min] */
   vc: number
-  /** 主偏角 [°] */
+  /** 刀片形狀；缺省 'straight'，'round' 時改用 insertDia 計算 h，忽略 kappaR */
+  insertShape?: InsertShape
+  /** 圓形刀片直徑 [mm]（insertShape='round' 時使用；近似式 hm≈fn·√(ap/d) 適用約 ap≲d/2） */
+  insertDia?: number
+  /** 主偏角 [°]（僅 insertShape≠'round' 時用於 h 計算） */
   kappaR: number
   /** 實際前角 [°] */
   gamma0: number
@@ -44,6 +51,8 @@ export interface DutyCase {
   ffRatio?: number
   /** 背分力比 Fp/Fc（經驗值）；舊資料缺省時以 0.30 計 */
   fpRatio?: number
+  /** 刃口磨耗量 VB [mm]（放大 Fc/Ff/Fp 估算磨耗餘裕）；0 = 全新刃口；舊資料缺省時以 0 計 */
+  vb?: number
   /** operation = 'direct'（如螺紋，由廠商工具計算）時直接給定主軸端座標 */
   directNSp?: number
   /** [N·m] */
@@ -72,6 +81,8 @@ export interface DutyResult {
   TSp: number
   /** 交叉驗證：T_sp = Fc·D/2·10⁻³ 獨立計算值；direct 模式為 null */
   TSpCross: number | null
+  /** 是否已套用刃口磨耗修正（vb > 0）；供 UI 顯示提示 */
+  wearApplied: boolean
 }
 
 /** 主軸端需求點（Phase 3 覆蓋驗證的輸入） */

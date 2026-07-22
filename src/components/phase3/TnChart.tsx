@@ -106,10 +106,10 @@ export function TnChart({
                 strokeOpacity={0.55}
                 label={{
                   value: fmt(nEnd, 0),
-                  position: 'insideBottom',
+                  position: 'insideTop',
                   fill: GEAR_COLORS[k],
                   fontSize: 10,
-                  dy: 12,
+                  dy: -2,
                 }}
               />
             )
