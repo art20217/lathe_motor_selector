@@ -4,7 +4,7 @@
  * 公式依據 SOP Step 1.2 / 1.3（kc 修正式為 Sandvik 線性近似，
  * 前角偏離參考值 ±10° 以內適用）。
  */
-import { wearMultipliers } from './toolWear'
+import { VB_DEFAULT, wearMultipliers } from './toolWear'
 import { TORQUE_CONST, type DutyCase, type DutyResult } from './types'
 
 const DEG = Math.PI / 180
@@ -103,7 +103,9 @@ export function computeDuty(c: DutyCase): DutyResult {
   const FcSharp = cuttingForce(kc, c.ap, c.fn)
   const FfSharp = (c.ffRatio ?? DEFAULT_FF_RATIO) * FcSharp
   const FpSharp = (c.fpRatio ?? DEFAULT_FP_RATIO) * FcSharp
-  const wear = wearMultipliers(c.vb ?? 0)
+  // vb 未設定（undefined）時採保守磨耗餘裕 VB_DEFAULT；使用者明確填 0 才代表全新刃口
+  const vb = c.vb ?? VB_DEFAULT
+  const wear = wearMultipliers(vb)
   const Fc = FcSharp * wear.fc
   const Ff = FfSharp * wear.ff
   const Fp = FpSharp * wear.fp
@@ -120,6 +122,6 @@ export function computeDuty(c: DutyCase): DutyResult {
     nSp,
     TSp: spindleTorque(Pc, nSp),
     TSpCross: spindleTorqueFromForce(Fc, c.D),
-    wearApplied: (c.vb ?? 0) > 0,
+    wearApplied: vb > 0,
   }
 }

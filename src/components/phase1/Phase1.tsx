@@ -15,7 +15,7 @@ import {
   DEFAULT_GAMMA_REF,
   DEFAULT_INSERT_DIA,
 } from '../../engine/cutting'
-import { VB_DEFAULT, VB_TABLE_MAX, wearMultipliers } from '../../engine/toolWear'
+import { nearestWearLabel, VB_DEFAULT, VB_REFERENCE, VB_TABLE_MAX, wearMultipliers } from '../../engine/toolWear'
 import { deflectionCheck, SUPPORT_FACTOR, type SupportType } from '../../engine/workpiece'
 import { fmt } from '../../lib/format'
 import { parseMaterialLibrary } from '../../lib/materialImport'
@@ -460,7 +460,7 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
               }
             >
               <NumInput
-                value={c.vb ?? 0}
+                value={c.vb ?? VB_DEFAULT}
                 onChange={(v) => s.updateCase(c.id, { vb: v })}
                 step={0.05}
                 min={0}
@@ -488,10 +488,10 @@ function DutyCaseCard({ c, r, flash }: { c: DutyCase; r: DutyResult; flash: bool
             <span className="text-slate-500">Fp = {fmt(r.Fp, 0)} N</span>
             {r.wearApplied && (
               <span className="text-amber-700">
-                含磨耗修正 VB={fmt(c.vb ?? 0, 2)}mm → ×
-                {fmt(wearMultipliers(c.vb ?? 0).fc, 2)}/{fmt(wearMultipliers(c.vb ?? 0).ff, 2)}/
-                {fmt(wearMultipliers(c.vb ?? 0).fp, 2)}
-                {(c.vb ?? 0) > VB_TABLE_MAX && (
+                含磨耗修正 VB={fmt(c.vb ?? VB_DEFAULT, 2)}mm（{nearestWearLabel(c.vb ?? VB_DEFAULT)}） → ×
+                {fmt(wearMultipliers(c.vb ?? VB_DEFAULT).fc, 2)}/{fmt(wearMultipliers(c.vb ?? VB_DEFAULT).ff, 2)}/
+                {fmt(wearMultipliers(c.vb ?? VB_DEFAULT).fp, 2)}
+                {(c.vb ?? VB_DEFAULT) > VB_TABLE_MAX && (
                   <span className="ml-1"><Badge kind="warn">已超出參考表範圍，倍率以上限外插</Badge></span>
                 )}
               </span>
@@ -639,6 +639,41 @@ export function Phase1() {
           Sandvik CoroPlus ToolGuide）計算後，用「直接輸入 (n, T)」型態填入結果。新增的工況會帶入
           S45C 與常用切削條件作為起始值，全部欄位皆可修改。
         </p>
+        <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+          <p className="mb-1.5 font-medium text-slate-600">
+            刃口磨耗 VB 參考表（各工況「刃口磨耗 VB」欄缺省採 0.3mm 保守假設，填 0 代表全新刃口）：
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse tabular-nums">
+              <thead>
+                <tr className="text-left text-slate-400">
+                  <th className="pr-3 py-0.5 font-normal">VB [mm]</th>
+                  <th className="pr-3 py-0.5 font-normal">刃口狀態</th>
+                  <th className="pr-3 py-0.5 text-right font-normal">Fc 倍率</th>
+                  <th className="pr-3 py-0.5 text-right font-normal">Ff 倍率</th>
+                  <th className="pr-3 py-0.5 text-right font-normal">Fp 倍率</th>
+                </tr>
+              </thead>
+              <tbody>
+                {VB_REFERENCE.map((p) => (
+                  <tr key={p.vb} className={p.vb === VB_DEFAULT ? 'font-medium text-slate-700' : 'text-slate-500'}>
+                    <td className="pr-3 py-0.5">{p.vb.toFixed(1)}</td>
+                    <td className="pr-3 py-0.5">
+                      {p.label}
+                      {p.vb === VB_DEFAULT && <span className="ml-1">（預設）</span>}
+                    </td>
+                    <td className="pr-3 py-0.5 text-right">×{p.fc.toFixed(2)}</td>
+                    <td className="pr-3 py-0.5 text-right">×{p.ff.toFixed(2)}</td>
+                    <td className="pr-3 py-0.5 text-right">×{p.fp.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1.5 text-slate-400">
+            數值點之間線性內插；超過 {VB_TABLE_MAX}mm 以末端倍率外插。倍率為近似參考範圍，實際隨材料/刀具/塗層而異。
+          </p>
+        </div>
         {importMsg && (
           <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             <div className="flex items-center gap-2">

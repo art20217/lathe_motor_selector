@@ -13,6 +13,7 @@ import {
 } from '../cutting'
 import type { DutyCase } from '../types'
 
+// vb 明確設為 0（全新刃口）：確保純 Kienzle 公式驗算不受磨耗放大干擾
 const baseCase: DutyCase = {
   id: 'c1',
   name: '外徑粗車',
@@ -27,6 +28,7 @@ const baseCase: DutyCase = {
   kappaR: 95,
   gamma0: 6,
   gammaRef: 6,
+  vb: 0,
   note: '',
 }
 
@@ -101,11 +103,17 @@ describe('Phase 1 切削計算', () => {
     expect(r.Fp).toBeNull()
   })
 
-  it('vb 未設定或為 0：wearApplied=false，分力不放大', () => {
+  it('vb 明確設為 0：wearApplied=false，分力不放大（全新刃口）', () => {
     const r = computeDuty(baseCase)
     expect(r.wearApplied).toBe(false)
-    const rZero = computeDuty({ ...baseCase, vb: 0 })
-    expect(rZero.Fc).toBeCloseTo(r.Fc!, 6)
+  })
+
+  it('vb 未設定（欄位缺省，如舊專案/匯入資料）：預設採 VB_DEFAULT=0.3mm 保守磨耗餘裕，而非全新刃口', () => {
+    const { vb: _drop, ...caseWithoutVb } = baseCase
+    const r = computeDuty(caseWithoutVb as DutyCase)
+    const rSharp = computeDuty(baseCase) // vb=0 明確全新刃口，作為對照基準
+    expect(r.wearApplied).toBe(true)
+    expect(r.Fc).toBeCloseTo(rSharp.Fc! * 1.3, 2)
   })
 
   it('vb=0.3mm：Fc/Ff/Fp 依磨耗倍率放大，Pc 隨 Fc 同步提高', () => {
