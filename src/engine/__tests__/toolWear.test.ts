@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { VB_DEFAULT, VB_TABLE_MAX, wearMultipliers } from '../toolWear'
+import { nearestWearLabel, VB_DEFAULT, VB_REFERENCE, VB_TABLE_MAX, wearMultipliers } from '../toolWear'
 
 describe('刃口磨耗 VB 分力放大倍率', () => {
   it('VB=0（全新刃口）不放大', () => {
@@ -31,5 +31,12 @@ describe('刃口磨耗 VB 分力放大倍率', () => {
     const w = wearMultipliers(0.3)
     expect(w.fp).toBeGreaterThan(w.ff)
     expect(w.ff).toBeGreaterThan(w.fc)
+  })
+
+  it('nearestWearLabel 回傳最接近該 VB 的刃口狀態說明', () => {
+    expect(nearestWearLabel(0)).toBe('全新刃口／未使用')
+    expect(nearestWearLabel(0.3)).toContain('ISO 3685')
+    expect(nearestWearLabel(0.27)).toBe(nearestWearLabel(0.3)) // 較接近 0.3 而非 0.2
+    expect(nearestWearLabel(10)).toBe(VB_REFERENCE[VB_REFERENCE.length - 1].label) // 超界取表格末端
   })
 })
